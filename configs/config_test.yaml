@@ -1,0 +1,10 @@
+# data configs
+data_path: 'data/multi_data.pth'
+tasks: ['sine', 'tanh', 'sigmoid', 'gaussian']
+
+# evaluation configs
+global_batch_size: 10
+M: 10
+N: 1000
+K: 5
+L: 5

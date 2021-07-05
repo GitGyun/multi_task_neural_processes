@@ -1,0 +1,81 @@
+import os
+import argparse
+import tqdm
+import yaml
+from easydict import EasyDict
+
+import torch
+
+from data import load_data, to_device
+from model import get_model
+from trainer import evaluate
+
+
+### ENVIRONMENTAL SETTINGS
+# to prevent over-threading
+torch.set_num_threads(1)
+
+# arguments
+parser = argparse.ArgumentParser()
+parser.add_argument('--eval_dir', type=str, default='runs')
+parser.add_argument('--eval_name', type=str, default='')
+parser.add_argument('--device', type=str, default='0')
+parser.add_argument('--reset', default=False, action='store_true')
+parser.add_argument('--verbose', '-v', default=False, action='store_true')
+
+parser.add_argument('--M', type=int, default=10)
+parser.add_argument('--gamma', type=float, default=0.)
+parser.add_argument('--seed', type=int, default=0)
+parser.add_argument('--global_batch_size', type=int, default=-1)
+
+args = parser.parse_args()
+
+# set device and evaluation directory
+os.environ['CUDA_VISIBLE_DEVICES'] = args.device
+device = torch.device('cuda')
+args.eval_dir = os.path.join('experiments', args.eval_dir)
+if args.eval_name == '':
+    eval_list = os.listdir(args.eval_dir)
+else:
+    eval_list = [args.eval_name]
+
+# load test config
+with open('configs/config_test.yaml') as f:
+    config_test = EasyDict(yaml.safe_load(f))
+config_test.M = args.M
+config_test.gamma_test = args.gamma
+config_test.seed = args.seed
+if args.global_batch_size > 0:
+    config_test.global_batch_size = args.global_batch_size
+
+# load test dataloader
+test_loader = load_data(config_test, device, test=True)
+
+# test models in eval_list
+for exp_name in eval_list:
+    # skip if checkpoint not exists
+    ckpt_path = os.path.join(args.eval_dir, exp_name, 'checkpoints', 'best.pth')
+    if not os.path.exists(ckpt_path):
+        continue
+    
+    # skip if already tested
+    result_dir = os.path.join(args.eval_dir, exp_name, 'results')
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
+    result_path = os.path.join(result_dir, 'result_gamma{}_seed{}.pth'.format(args.gamma, args.seed))
+    if os.path.exists(result_path) and not args.reset:
+        continue
+    
+    # load model and config
+    ckpt = torch.load(ckpt_path, map_location=device)
+    config = ckpt['config']
+    model = get_model(config, device)
+    model.load_state_dict(ckpt['model'])
+    if args.verbose:
+        print('evaluating {} with test seed {} and gamma {}'.format(exp_name, args.seed, args.gamma))
+    
+    # evaluate and save results
+    errors = evaluate(model, test_loader, device, config_test)
+    if args.verbose:
+        print(errors)
+    torch.save(errors, result_path)
