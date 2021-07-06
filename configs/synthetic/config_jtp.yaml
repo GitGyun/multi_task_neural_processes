@@ -1,4 +1,5 @@
 # data configs
+data: 'synthetic'
 data_path: 'data/multi_data.pth'
 tasks: ['sine', 'tanh', 'sigmoid', 'gaussian']
 
@@ -33,6 +34,7 @@ n_attn_heads: 4
 module_sizes: [2, 1, 3]
 stochastic_path: True
 deterministic_path: True
+implicit_global_latent: False
 
 # logging configs
 log_iter: 100

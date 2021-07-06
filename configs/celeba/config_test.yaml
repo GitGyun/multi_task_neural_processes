@@ -1,0 +1,11 @@
+# data configs
+data: 'celeba'
+data_path: 'data/CelebAMask-HQ'
+tasks: ['rgb', 'edge', 'pncc', 'segment']
+
+# evaluation configs
+global_batch_size: 10
+M: 30
+N: 1024
+K: 5
+L: 5

@@ -70,8 +70,8 @@ class STP(nn.Module):
         
         # decoder
         self.decoder = nn.ModuleList([
-            NormalDecoder(dim_x, dim_hidden, dim_ys[task], module_sizes[2],
-                          stochastic_path, deterministic_path)
+            Decoder(dim_x, dim_hidden, dim_ys[task], module_sizes[2],
+                    stochastic_path, deterministic_path, normal=(task != 'segment'))
             for task in tasks
         ])
         
@@ -125,7 +125,7 @@ class STP(nn.Module):
                 # prepare context and target
                 C = torch.cat((X_C, Y_C[task]), -1)
                 D = torch.cat((X_D, Y_D[task]), -1)
-                mask_C = C[..., 1].isnan()
+                mask_C = C[..., -1].isnan()
             
                 # stochastic path for prior and posterior
                 if self.stochastic_path:
@@ -157,7 +157,7 @@ class STP(nn.Module):
             for t, task in enumerate(self.tasks):
                 # prepare context
                 C = torch.cat((X_C, Y_C[task]), -1)
-                mask_C = C[..., 1].isnan()
+                mask_C = C[..., -1].isnan()
             
                 # stochastic path
                 if self.stochastic_path:
@@ -244,8 +244,8 @@ class JTP(nn.Module):
                                                         n_attn_heads, module_sizes[1], ln=ln)
         
         # decoder
-        self.decoder = NormalDecoder(dim_x, dim_hidden, dim_y, module_sizes[2],
-                                     stochastic_path, deterministic_path)
+        self.decoder = JTPDecoder(dim_x, dim_hidden, dim_y, module_sizes[2],
+                                  stochastic_path, deterministic_path)
         
     def forward(self, X_C, Y_C, X_D, Y_D=None, MAP=False, K=1, L=1):
         '''
@@ -450,8 +450,8 @@ class MTP(nn.Module):
         
         # decoder
         self.decoder = nn.ModuleList([
-            NormalDecoder(dim_x, dim_hidden, dim_ys[task], module_sizes[2],
-                          stochastic_path, deterministic_path)
+            Decoder(dim_x, dim_hidden, dim_ys[task], module_sizes[2],
+                          stochastic_path, deterministic_path, normal=(task != 'segment'))
             for task in tasks
         ])
         
@@ -507,7 +507,7 @@ class MTP(nn.Module):
                 # prepare context and target
                 C = torch.cat((X_C, Y_C[task]), -1)
                 D = torch.cat((X_D, Y_D[task]), -1)
-                masks_C.append(C[..., 1].isnan())
+                masks_C.append(C[..., -1].isnan())
             
                 # stochastic paths
                 if self.stochastic_path:
@@ -527,7 +527,7 @@ class MTP(nn.Module):
                 
                 if not self.implicit_global_latent:
                     q_C_G = self.global_latent_encoder(S_C_G)
-                    q_D_G = self.global_latent_encoder(S_D)
+                    q_D_G = self.global_latent_encoder(S_D_G)
                     z = q_D_G.rsample()
                 else:
                     q_C_G = q_D_G = None
@@ -565,7 +565,7 @@ class MTP(nn.Module):
             for t, task in enumerate(self.tasks):
                 # prepare context
                 C = torch.cat((X_C, Y_C[task]), -1)
-                masks_C.append(C[..., 1].isnan())
+                masks_C.append(C[..., -1].isnan())
             
                 # stochastic paths
                 if self.stochastic_path:

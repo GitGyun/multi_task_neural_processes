@@ -1,4 +1,5 @@
 # data configs
+data: 'synthetic'
 data_path: 'data/multi_data.pth'
 tasks: ['sine', 'tanh', 'sigmoid', 'gaussian']
 

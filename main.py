@@ -18,6 +18,7 @@ torch.set_num_threads(1)
 
 # arguments
 parser = argparse.ArgumentParser()
+parser.add_argument('--data', type=str, default='synthetic', choices=['synthetic', 'celeba'])
 parser.add_argument('--model', type=str, default='mtp', choices=['stp', 'jtp', 'mtp'])
 parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--name_postfix', '-ptf', type=str, default='')
@@ -34,7 +35,7 @@ parser.add_argument('--implicit_global_latent', '-igl', default=False, action='s
 args = parser.parse_args()
 
 # load config
-with open('configs/config_{}.yaml'.format(args.model)) as f:
+with open(os.path.join('configs', args.data, 'config_{}.yaml'.format(args.model))) as f:
     config = EasyDict(yaml.safe_load(f))
 
 # configure logging and checkpointing paths

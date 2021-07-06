@@ -10,6 +10,7 @@ parser.add_argument('--gamma', type=float, default=0.5)
 parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--save_dir', type=str, default='mask_indices')
 parser.add_argument('--split', type=str, default='test')
+parser.add_argument('--postfix', type=str, default='')
 args = parser.parse_args()
 
 torch.manual_seed(args.seed)
@@ -22,4 +23,4 @@ for i in range(args.n_tasks):
 mask = mask.bool()
 if not os.path.exists(args.save_dir):
     os.makedirs(args.save_dir)
-torch.save(mask, os.path.join(args.save_dir, 'mask_M{}_gamma{}_seed{}_{}'.format(args.M, args.gamma, args.seed, args.split)))
+torch.save(mask, os.path.join(args.save_dir, 'mask_M{}_gamma{}_seed{}_{}'.format(args.M, args.gamma, args.seed, args.split) + args.postfix))

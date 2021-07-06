@@ -95,13 +95,14 @@ class MultiTaskAttention(nn.Module):
         return Q
             
             
-class NormalDecoder(nn.Module):
+class Decoder(nn.Module):
     def __init__(self, dim_x, dim_hidden, dim_y, n_layers,
-                 stochastic_path=True, deterministic_path=True):
+                 stochastic_path=True, deterministic_path=True, normal=True):
         super().__init__()
         assert n_layers >= 1
         self.stochastic_path = stochastic_path
         self.deterministic_path = deterministic_path
+        self.normal = normal
         
         dim_input = dim_hidden
         if self.stochastic_path:
@@ -118,7 +119,8 @@ class NormalDecoder(nn.Module):
         self.layers = nn.Sequential(*layers)
         
         self.hidden_to_mu = nn.Linear(dim_hidden, dim_y)
-        self.hidden_to_sigma = nn.Linear(dim_hidden, dim_y)
+        if normal:
+            self.hidden_to_sigma = nn.Linear(dim_hidden, dim_y)
         
     def forward(self, x, v=None, r=None):
         # prepare inputs
@@ -135,9 +137,20 @@ class NormalDecoder(nn.Module):
         input_tensor = torch.cat(input_list, -1).reshape(x.size(0)*x.size(1), -1)
         hidden = self.layers(input_tensor).reshape(x.size(0), x.size(1), -1)
 
-        # extract normal parameters from hidden state
+        # extract normal parameters (or logits) from hidden state
         mu = self.hidden_to_mu(hidden)
-        sigma = 0.1 + 0.9*F.softplus(self.hidden_to_sigma(hidden))
-        p = Normal(mu, sigma)
+        if self.normal:
+            sigma = 0.1 + 0.9*F.softplus(self.hidden_to_sigma(hidden))
+            p = Normal(mu, sigma)
+            return p
+        else:
+            return mu
         
-        return p
+        
+class Squeeze(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.dim = dim
+        
+    def forward(self, x):
+        return x.squeeze(self.dim)

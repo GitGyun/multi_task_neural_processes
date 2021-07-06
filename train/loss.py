@@ -1,13 +1,20 @@
+import torch
+import torch.nn.functional as F
 from torch.distributions import kl_divergence
 
+from .utils import RunningConfusionMatrix
 
-def elbo(Y_D, p_Y, q_D_G, q_C_G, q_D, q_C, config, logger=None):
+
+def compute_elbo(Y_D, p_Y, q_D_G, q_C_G, q_D, q_C, config, logger=None):
     '''
     Compute (prior-approximated) elbo objective for NP-based models.
     '''
     log_prob = 0
     for task in config.tasks:
-        log_prob_ = p_Y[task].log_prob(Y_D[task]).mean(0).sum()
+        if task == 'segment':
+            log_prob_ = -F.cross_entropy(p_Y[task].transpose(1, 2), torch.argmax(Y_D[task], -1), reduction='none').mean(0).sum()
+        else:
+            log_prob_ = p_Y[task].log_prob(Y_D[task]).mean(0).sum()
         log_prob += log_prob_
         if logger is not None:
             logger.add_value('nll_{}'.format(task), -log_prob_.item())
@@ -31,16 +38,22 @@ def elbo(Y_D, p_Y, q_D_G, q_C_G, q_D, q_C, config, logger=None):
     return elbo
 
 
-def normalized_mse(Y_D, Y_D_pred, scales=None):
+def compute_error(Y_D, Y_D_pred, scales=None):
     '''
-    Compute MSE normalized by the given scale.
+    Compute (normalized) MSE for continuous tasks and 1 - mIoU for categorical tasks.
     '''
-    mse = {}
+    error = {}
     for task in Y_D:
-        mse_ = (Y_D[task] - Y_D_pred[task]).pow(2)
-        if scales is not None:
-            mse_ /= scales.pow(2)
-        mse[task] = mse_.mean()
-        
-    return mse
-    
+        if task == 'segment':
+            calculator = RunningConfusionMatrix(None)
+            calculator.update_matrix(torch.argmax(Y_D[task], -1).reshape(-1).cpu(), Y_D_pred[task].reshape(-1).cpu())
+            miou = calculator.compute_current_mean_intersection_over_union()
+            error[task] = 1 - miou
+        else:
+            mse = (Y_D[task] - Y_D_pred[task]).pow(2)
+            if scales is not None:
+                mse /= scales.pow(2)
+            error[task] = mse.mean().cpu()
+            
+    return error
+

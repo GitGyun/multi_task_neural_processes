@@ -1,12 +1,18 @@
+import os
+from PIL import Image
+import numpy as np
+
 import torch
+import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from torch.distributions import Bernoulli
-import numpy as np
+from torchvision.transforms import ToTensor, ToPILImage
+
 
 from .generate_data import activations
 
 
-class TrainDataset(Dataset):
+class SyntheticTrainDataset(Dataset):
     def __init__(self, data_path, datasets, tasks):
         '''
         Train dataset samples (X_D, Y_D).
@@ -25,7 +31,7 @@ class TrainDataset(Dataset):
         return self.X[idx, perm], {task: self.Y[task][idx, perm] for task in self.Y}
     
     
-class TestDataset(Dataset):
+class SyntheticTestDataset(Dataset):
     def __init__(self, data_path, datasets, tasks, N, M, gamma, seed, split='test'):
         '''
         Test dataset samples (X_D, Y_D).
@@ -42,7 +48,7 @@ class TestDataset(Dataset):
         
         # randomly drop context labels with pre-computed masks
         if gamma > 0:
-            mask = torch.load('data/mask_indices/mask_M{}_gamma{}_seed{}_{}'.format(M, gamma, seed, split))
+            mask = torch.load(os.path.join('data', 'mask_indices', 'mask_M{}_gamma{}_seed{}_{}'.format(M, gamma, seed, split)))
             for t, task in enumerate(tasks):
                 self.Y_C[task] = torch.where(mask[:, :M, t].unsqueeze(-1).expand_as(self.Y_C[task]),
                                              float('nan')*self.Y_C[task],
@@ -68,7 +74,106 @@ class TestDataset(Dataset):
         return len(self.X_C)
     
     def __getitem__(self, idx):
-        return self.X_C[idx], self.Y_C[idx], self.X_D[idx], self.Y_D[idx], self.scales[idx]
+        return self.X_C[idx].clone(), self.Y_C[idx].clone(), self.X_D[idx].clone(), self.Y_D[idx].clone(), self.scales[idx].clone()
+    
+    
+class CelebADataset(Dataset):
+    def __init__(self, data_path, datasets, tasks, N=400):
+        super().__init__()
+        self.data_path = data_path
+        self.datasets = datasets
+        # drop corrupted data
+        corrupted_images = [5380, 5125]
+        for ci in corrupted_images:
+            if ci in self.datasets:
+                self.datasets.pop(ci)
+                
+        self.tasks = tasks
+        self.N = N
+        self.subroots = {
+            'rgb': 'CelebA-HQ-img-32',
+            'edge': 'CelebAMask-HQ-sobel-32',
+            'pncc': 'CelebAMask-HQ-pncc-32',
+            'segment': 'CelebAMask-HQ-mask-32',
+            }
+        self.extensions = {
+            'rgb': 'jpg',
+            'edge': 'png',
+            'pncc': 'png',
+            'segment': 'png',
+            }
+
+        self.toten = ToTensor()
+        self.topil = ToPILImage()
+        self.coords = torch.stack(torch.meshgrid(torch.arange(32), torch.arange(32)), -1).div(32).mul(2).add(-1).reshape(-1, 2)
+        
+    def __len__(self):
+        return len(self.datasets)
+    
+
+class CelebATrainDataset(CelebADataset):
+    def __getitem__(self, idx):
+        # permute pixels
+        perm = torch.randperm(len(self.coords))[:self.N]
+        X = self.coords[perm].clone()
+        Y = {}
+        
+        # load image or label map
+        for task in self.tasks:
+            Y[task] = self.toten(Image.open(os.path.join(self.data_path, self.subroots[task],
+                                                         "{}.{}".format(str(self.datasets[idx]), self.extensions[task]))))
+            Y[task] = Y[task].reshape(Y[task].shape[0], -1).t()[perm]
+            if task == "segment":
+                Y[task] = F.one_hot((Y[task] * 255).squeeze(-1).long(), 19).float()
+        
+        return X, Y
+    
+
+class CelebATestDataset(CelebADataset):
+    def __init__(self, data_path, datasets, tasks, N, M, gamma, seed, split):
+        super().__init__(data_path, datasets, tasks, N)
+        self.M = M
+        self.gamma = gamma
+        
+        # load permutations
+        perm_path = os.path.join(data_path, 'permutations_{}.pth'.format(split))
+        if os.path.exists(perm_path):
+            self.permutations = torch.load(perm_path)
+        else:
+            self.permutations = torch.stack([torch.randperm(N) for _ in datasets])
+            torch.save(self.permutations, perm_path)
+            print('initialized and saved {} permutations'.format(split))
+    
+        # load masks
+        if gamma > 0:
+            self.masks = torch.load(os.path.join('data', 'mask_indices', 'mask_M{}_gamma{}_seed{}_{}_celeba'.format(M, gamma, seed, split)))
+                
+    def __getitem__(self, idx):
+        # load all pixels and permute
+        perm = self.permutations[idx]
+        X_D = self.coords[perm][:self.N].clone()
+        Y_D = {}
+        
+        # load image or label map
+        for task in self.tasks:
+            Y_D[task] = self.toten(Image.open(os.path.join(self.data_path, self.subroots[task],
+                                                           "{}.{}".format(str(self.datasets[idx]), self.extensions[task]))))
+            Y_D[task] = Y_D[task].reshape(Y_D[task].shape[0], -1).t()[perm][:self.N]
+            if task == "segment":
+                Y_D[task] = F.one_hot((Y_D[task] * 255).squeeze(-1).long(), 19).float()
+        
+        # sample context
+        X_C = X_D[:self.M].clone()
+        Y_C = {task: Y_D[task][:self.M].clone() for task in Y_D}
+        
+        # mask context
+        if self.gamma > 0:
+            for t, task in enumerate(Y_C):
+                Y_C[task] = torch.where(self.masks[idx, :self.M, t].unsqueeze(-1).expand_as(Y_C[task]),
+                                        float('nan')*Y_C[task],
+                                        Y_C[task])
+        
+        return X_C, Y_C, X_D, Y_D
     
     
 def sample_context(X_D, Y_D, gamma=0):
@@ -134,9 +239,26 @@ def load_data(config, device, split='trainval'):
     '''
     Load train & valid or test data and return the iterator & loader.
     '''
+    if config.data == 'synthetic':
+        train_datasets = list(range(900))
+        valid_datasets = list(range(900, 950))
+        test_datasets = list(range(950, 1000))
+        
+        TrainDataset = SyntheticTrainDataset
+        TestDataset = SyntheticTestDataset
+    elif config.data == 'celeba':
+        train_datasets = list(range(27000))
+        valid_datasets = list(range(27000, 28500))
+        test_datasets = list(range(28500, 30000))
+        
+        TrainDataset = CelebATrainDataset
+        TestDataset = CelebATestDataset
+    else:
+        raise NotImplementedError
+        
+    
     # load train iterator
     if split == 'train' or split == 'trainval':
-        train_datasets = list(range(900))
 
         train_data = TrainDataset(config.data_path, train_datasets, config.tasks)
         train_loader = DataLoader(train_data, batch_size=config.global_batch_size,
@@ -145,7 +267,6 @@ def load_data(config, device, split='trainval'):
         
     # load valid loader
     if split == 'valid' or split == 'trainval':
-        valid_datasets = list(range(900, 950))
         valid_data = TestDataset(config.data_path, valid_datasets, config.tasks,
                                  config.N, config.M, config.gamma_test, config.seed, split='valid')
         valid_loader = DataLoader(valid_data, batch_size=config.global_batch_size,
@@ -153,7 +274,6 @@ def load_data(config, device, split='trainval'):
     
     # load test loader
     if split == 'test':
-        test_datasets = list(range(950, 1000))
 
         test_data = TestDataset(config.data_path, test_datasets, config.tasks,
                                 config.N, config.M, config.gamma_test, config.seed, split='test')

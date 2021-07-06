@@ -2,3 +2,5 @@ experiments*
 *.ipynb_checkpoints*
 *__pycache__*
 *.ipynb
+data/CelebAMask-HQ
+data/mask_indices
