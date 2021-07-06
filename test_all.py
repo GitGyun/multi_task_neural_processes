@@ -7,6 +7,7 @@ import tqdm
 parser = argparse.ArgumentParser()
 parser.add_argument('--eval_dir', type=str, default='runs')
 parser.add_argument('--eval_name', type=str, default='')
+parser.add_argument('--split', type=str, default='test', choices=['test', 'valid'])
 parser.add_argument('--reset', default=False, action='store_true')
 parser.add_argument('--devices', nargs='+', default=['0', '1', '2', '3'])
 parser.add_argument('--n_threads', type=int, default=8)
@@ -21,7 +22,7 @@ prod = list(itertools.product(Ms, gammas, seeds))
 def run_thread(ip):
     i, p = ip
     device = args.devices[i % len(args.devices)]
-    command = 'python test.py --eval_dir {} --device {} --M {} --gamma {} --seed {}'.format(args.eval_dir, device, *p)
+    command = 'python test.py --eval_dir {} --device {} --M {} --gamma {} --seed {} --split {}'.format(args.eval_dir, device, *p, args.split)
     if args.eval_name != '':
         command += ' --eval_name {}'.format(args.eval_name)
     if args.reset:

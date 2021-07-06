@@ -14,7 +14,25 @@ from torchvision.transforms import ToTensor
 from data import colors
 
 
-def configure_experiment(config, debug_mode=False):
+def configure_experiment(config, args):
+    # update config with arguments
+    config.seed = args.seed
+    config.name_postfix = args.name_postfix
+    if args.n_steps > 0:
+        config.n_steps = args.n_steps
+    if args.lr > 0:
+        config.lr = args.lr
+    if args.global_batch_size > 0:
+        config.global_batch_size = args.global_batch_size
+    if len(args.module_sizes) > 0:
+        config.module_sizes = [int(size) for size in args.module_sizes]
+    if args.no_stochastic_path:
+        config.stochastic_path = False
+    if args.no_deterministic_path:
+        config.deterministic_path = False
+    if args.implicit_global_latent:
+        config.implicit_global_latent = True
+    
     # set seeds
     torch.backends.cudnn.deterministic = True
     torch.manual_seed(config.seed)
@@ -23,7 +41,7 @@ def configure_experiment(config, debug_mode=False):
     np.random.seed(config.seed)
     
     # for debugging
-    if debug_mode:
+    if args.debug_mode:
         config.n_steps = 3
         config.log_iter = 1
         config.val_iter = 1
@@ -38,7 +56,7 @@ def configure_experiment(config, debug_mode=False):
     log_path = os.path.join('experiments', config.log_dir, exp_name, 'logs')
     save_path = os.path.join('experiments', config.log_dir, exp_name, 'checkpoints')
     if os.path.exists(save_path):
-        if debug_mode:
+        if args.debug_mode:
             shutil.rmtree(save_path)
         else:
             while True:

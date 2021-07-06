@@ -130,31 +130,42 @@ def get_train_iterator(train_loader, device, gamma=0):
     return get_batch()
 
 
-def load_data(config, device, test=False):
+def load_data(config, device, split='trainval'):
     '''
     Load train & valid or test data and return the iterator & loader.
     '''
-    if test:
+    # load train iterator
+    if split == 'train' or split == 'trainval':
+        train_datasets = list(range(900))
+
+        train_data = TrainDataset(config.data_path, train_datasets, config.tasks)
+        train_loader = DataLoader(train_data, batch_size=config.global_batch_size,
+                                  shuffle=True, pin_memory=(device.type == 'cuda'), drop_last=True, num_workers=4)
+        train_iterator = get_train_iterator(train_loader, device, config.gamma_train)
+        
+    # load valid loader
+    if split == 'valid' or split == 'trainval':
+        valid_datasets = list(range(900, 950))
+        valid_data = TestDataset(config.data_path, valid_datasets, config.tasks,
+                                 config.N, config.M, config.gamma_test, config.seed, split='valid')
+        valid_loader = DataLoader(valid_data, batch_size=config.global_batch_size,
+                                  shuffle=False, pin_memory=(device.type == 'cuda'), drop_last=False, num_workers=4)
+    
+    # load test loader
+    if split == 'test':
         test_datasets = list(range(950, 1000))
 
         test_data = TestDataset(config.data_path, test_datasets, config.tasks,
                                 config.N, config.M, config.gamma_test, config.seed, split='test')
         test_loader = DataLoader(test_data, batch_size=config.global_batch_size,
                                  shuffle=False, pin_memory=(device.type == 'cuda'), drop_last=False, num_workers=4)
-        
-        return test_loader
-    else:
-        train_datasets = list(range(900))
-        valid_datasets = list(range(900, 950))
 
-        train_data = TrainDataset(config.data_path, train_datasets, config.tasks)
-        train_loader = DataLoader(train_data, batch_size=config.global_batch_size,
-                                  shuffle=True, pin_memory=(device.type == 'cuda'), drop_last=True, num_workers=4)
-        train_iterator = get_train_iterator(train_loader, device, config.gamma_train)
-
-        valid_data = TestDataset(config.data_path, valid_datasets, config.tasks,
-                                 config.N, config.M, config.gamma_test, config.seed, split='valid')
-        valid_loader = DataLoader(valid_data, batch_size=config.global_batch_size,
-                                  shuffle=False, pin_memory=(device.type == 'cuda'), drop_last=False, num_workers=4)
-
+    # return
+    if split == 'trainval':
         return train_iterator, valid_loader
+    elif split == 'train':
+        return train_iterator
+    elif split == 'valid':
+        return valid_loader
+    elif split == 'test':
+        return test_loader

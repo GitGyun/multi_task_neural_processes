@@ -30,7 +30,9 @@ dim_ys: {'sine': 1, 'tanh': 1, 'sigmoid': 1, 'gaussian': 1}
 dim_hidden: 512
 layernorm: False
 n_attn_heads: 4
-module_sizes: (2, 2, 3)
+module_sizes: [2, 1, 3]
+stochastic_path: True
+deterministic_path: True
 
 # logging configs
 log_iter: 100

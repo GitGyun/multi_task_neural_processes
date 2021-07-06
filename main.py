@@ -27,32 +27,25 @@ parser.add_argument('--n_steps', type=int, default=-1)
 parser.add_argument('--lr', type=float, default=-1)
 parser.add_argument('--global_batch_size', type=int, default=-1)
 parser.add_argument('--module_sizes', '-ms', nargs='+', default=[])
+parser.add_argument('--no_stochastic_path', '-nsp', default=False, action='store_true')
+parser.add_argument('--no_deterministic_path', '-ndp', default=False, action='store_true')
+parser.add_argument('--implicit_global_latent', '-igl', default=False, action='store_true')
 
 args = parser.parse_args()
 
+# load config
 with open('configs/config_{}.yaml'.format(args.model)) as f:
     config = EasyDict(yaml.safe_load(f))
 
-config.seed = args.seed
-config.name_postfix = args.name_postfix
-if args.n_steps > 0:
-    config.n_steps = args.n_steps
-if args.lr > 0:
-    config.lr = args.lr
-if args.global_batch_size > 0:
-    config.global_batch_size = args.global_batch_size
-if len(args.module_sizes) > 0:
-    config.module_sizes = tuple([int(size) for size in args.module_sizes])
-
-# device
-device = torch.device('cuda')
-
 # configure logging and checkpointing paths
-logger, save_path, log_keys = configure_experiment(config, args.debug_mode)
+logger, save_path, log_keys = configure_experiment(config, args)
 config_copy = copy.deepcopy(config)
 
+# set device
+device = torch.device('cuda')
+
 # load train and valid data
-train_iterator, valid_loader = load_data(config, device)
+train_iterator, valid_loader = load_data(config, device, split='trainval')
 
 # model, optimizer, and schedulers
 model = get_model(config, device)

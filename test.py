@@ -8,7 +8,7 @@ import torch
 
 from data import load_data, to_device
 from model import get_model
-from trainer import evaluate
+from train import evaluate
 
 
 ### ENVIRONMENTAL SETTINGS
@@ -19,6 +19,7 @@ torch.set_num_threads(1)
 parser = argparse.ArgumentParser()
 parser.add_argument('--eval_dir', type=str, default='runs')
 parser.add_argument('--eval_name', type=str, default='')
+parser.add_argument('--split', type=str, default='test', choices=['test', 'valid'])
 parser.add_argument('--device', type=str, default='0')
 parser.add_argument('--reset', default=False, action='store_true')
 parser.add_argument('--verbose', '-v', default=False, action='store_true')
@@ -49,7 +50,7 @@ if args.global_batch_size > 0:
     config_test.global_batch_size = args.global_batch_size
 
 # load test dataloader
-test_loader = load_data(config_test, device, test=True)
+test_loader = load_data(config_test, device, split=args.split)
 
 # test models in eval_list
 for exp_name in eval_list:
@@ -62,7 +63,7 @@ for exp_name in eval_list:
     result_dir = os.path.join(args.eval_dir, exp_name, 'results')
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
-    result_path = os.path.join(result_dir, 'result_gamma{}_seed{}.pth'.format(args.gamma, args.seed))
+    result_path = os.path.join(result_dir, 'result_gamma{}_seed{}_{}.pth'.format(args.gamma, args.seed, args.split))
     if os.path.exists(result_path) and not args.reset:
         continue
     
@@ -72,7 +73,7 @@ for exp_name in eval_list:
     model = get_model(config, device)
     model.load_state_dict(ckpt['model'])
     if args.verbose:
-        print('evaluating {} with test seed {} and gamma {}'.format(exp_name, args.seed, args.gamma))
+        print('evaluating {} with test seed {} and gamma {} on {} data'.format(exp_name, args.seed, args.gamma, args.split))
     
     # evaluate and save results
     errors = evaluate(model, test_loader, device, config_test)
