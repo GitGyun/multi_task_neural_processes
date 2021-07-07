@@ -2,6 +2,7 @@
 data: 'celeba'
 data_path: 'data/CelebAMask-HQ'
 tasks: ['rgb', 'edge', 'pncc', 'segment']
+eval_dir: 'runs_celeba'
 
 # evaluation configs
 global_batch_size: 10

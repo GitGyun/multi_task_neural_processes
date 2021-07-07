@@ -17,7 +17,8 @@ torch.set_num_threads(1)
 
 # arguments
 parser = argparse.ArgumentParser()
-parser.add_argument('--eval_dir', type=str, default='runs')
+parser.add_argument('--data', type=str, default='synthetic', choices=['synthetic', 'celeba'])
+parser.add_argument('--eval_dir', type=str, default='')
 parser.add_argument('--eval_name', type=str, default='')
 parser.add_argument('--split', type=str, default='test', choices=['test', 'valid'])
 parser.add_argument('--device', type=str, default='0')
@@ -31,6 +32,17 @@ parser.add_argument('--global_batch_size', type=int, default=-1)
 
 args = parser.parse_args()
 
+# load test config
+with open(os.path.join('configs', args.data, 'config_test.yaml')) as f:
+    config_test = EasyDict(yaml.safe_load(f))
+config_test.M = args.M
+config_test.gamma_test = args.gamma
+config_test.seed = args.seed
+if args.global_batch_size > 0:
+    config_test.global_batch_size = args.global_batch_size
+if args.eval_dir != '':
+    config_test.eval_dir = args.eval_dir
+
 # set device and evaluation directory
 os.environ['CUDA_VISIBLE_DEVICES'] = args.device
 device = torch.device('cuda')
@@ -40,23 +52,15 @@ if args.eval_name == '':
 else:
     eval_list = [args.eval_name]
 
-# load test config
-with open('configs/config_test.yaml') as f:
-    config_test = EasyDict(yaml.safe_load(f))
-config_test.M = args.M
-config_test.gamma_test = args.gamma
-config_test.seed = args.seed
-if args.global_batch_size > 0:
-    config_test.global_batch_size = args.global_batch_size
-
 # load test dataloader
 test_loader = load_data(config_test, device, split=args.split)
 
 # test models in eval_list
 for exp_name in eval_list:
-    # skip if checkpoint not exists
+    # skip if checkpoint not exists or still running
     ckpt_path = os.path.join(args.eval_dir, exp_name, 'checkpoints', 'best.pth')
-    if not os.path.exists(ckpt_path):
+    last_path = os.path.join(args.eval_dir, exp_name, 'checkpoints', 'last.pth')
+    if not (os.path.exists(ckpt_path) and os.path.exists(last_path)) :
         continue
     
     # skip if already tested
@@ -70,6 +74,14 @@ for exp_name in eval_list:
     # load model and config
     ckpt = torch.load(ckpt_path, map_location=device)
     config = ckpt['config']
+    
+    # for legacy
+    if 'stochastic_path' not in config:
+        config.stochastic_path = True
+    if 'deterministic_path' not in config:
+        config.deterministic_path = True
+    if 'implicit_global_latent' not in config:
+        config.implicit_global_latent = False
     model = get_model(config, device)
     model.load_state_dict(ckpt['model'])
     if args.verbose:

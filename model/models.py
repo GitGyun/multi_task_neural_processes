@@ -390,7 +390,7 @@ class MTP(nn.Module):
                                      [Type] int
 
             module_sizes:            number of layers for each module
-                                     [Type] tuple of int, of length 3
+                                     [Type] tuple of int, of length 4
 
             stochastic_path:         wheter to employ stochastic path
                                      [Type] bool
@@ -418,7 +418,7 @@ class MTP(nn.Module):
             
             if self.implicit_global_latent:
                 self.global_attention = nn.Sequential(
-                    *[SAB(dim_hidden, n_attn_heads, ln=ln) for _ in range(module_sizes[0])],
+                    *[SAB(dim_hidden, n_attn_heads, ln=ln) for _ in range(module_sizes[3])],
                 )
                 
                 self.task_latent_encoder = nn.ModuleList([
@@ -427,7 +427,7 @@ class MTP(nn.Module):
                 ])
             else:
                 self.global_attention = nn.Sequential(
-                    *[SAB(dim_hidden, n_attn_heads, ln=ln) for _ in range(module_sizes[0])],
+                    *[SAB(dim_hidden, n_attn_heads, ln=ln) for _ in range(module_sizes[3])],
                     PMA(dim_hidden, n_attn_heads, 1, ln=ln),
                     Squeeze(1),
                 )
@@ -535,8 +535,11 @@ class MTP(nn.Module):
                 q_C_G = q_D_G = z = None
             
             # multi-task attention
-            U_C = torch.stack(U_C)
-            r_D = self.attention_module(X_D, X_C, U_C, masks=masks_C)
+            if self.deterministic_path:
+                U_C = torch.stack(U_C)
+                r_D = self.attention_module(X_D, X_C, U_C, masks=masks_C).permute(2, 0, 1, 3)
+            else:
+                r_D = [None for _ in self.tasks]
             
             p_Y = {}
             q_C = {}
@@ -555,7 +558,7 @@ class MTP(nn.Module):
                     q_C = q_D = v = None
                 
                 # decoding
-                p_Y[task] = self.decoder[t](X_D, v, r_D[:, :, t])
+                p_Y[task] = self.decoder[t](X_D, v, r_D[t])
 
             return p_Y, q_D_G, q_C_G, q_D, q_C
         else:
@@ -585,9 +588,9 @@ class MTP(nn.Module):
             # multi-task attention
             if self.deterministic_path:
                 U_C = torch.stack(U_C)
-                r_D = self.attention_module(X_D, X_C, U_C, masks=masks_C)
+                r_D = self.attention_module(X_D, X_C, U_C, masks=masks_C).permute(2, 0, 1, 3)
             else:
-                r_D = None
+                r_D = [None for _ in self.tasks]
             
             # inference
             if not self.stochastic_path:
@@ -618,6 +621,6 @@ class MTP(nn.Module):
                             v = None
 
                         # decoding
-                        p_Ys[k*L+l][task] = self.decoder[t](X_D, v, r_D[:, :, t])
+                        p_Ys[k*L+l][task] = self.decoder[t](X_D, v, r_D[t])
 
             return p_Ys

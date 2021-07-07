@@ -2,6 +2,7 @@
 data: 'synthetic'
 data_path: 'data/multi_data.pth'
 tasks: ['sine', 'tanh', 'sigmoid', 'gaussian']
+eval_dir: 'runs_synthetic'
 
 # evaluation configs
 global_batch_size: 10

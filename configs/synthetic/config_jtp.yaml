@@ -40,4 +40,4 @@ implicit_global_latent: False
 log_iter: 100
 val_iter: 5000
 save_iter: 5000
-log_dir: 'runs'
+log_dir: 'runs_synthetic'

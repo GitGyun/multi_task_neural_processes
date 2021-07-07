@@ -28,7 +28,7 @@ class SyntheticTrainDataset(Dataset):
     def __getitem__(self, idx):
         perm = torch.randperm(self.X.size(1))
 
-        return self.X[idx, perm], {task: self.Y[task][idx, perm] for task in self.Y}
+        return self.X[idx, perm].clone(), {task: self.Y[task][idx, perm].clone() for task in self.Y}
     
     
 class SyntheticTestDataset(Dataset):
@@ -74,7 +74,12 @@ class SyntheticTestDataset(Dataset):
         return len(self.X_C)
     
     def __getitem__(self, idx):
-        return self.X_C[idx].clone(), self.Y_C[idx].clone(), self.X_D[idx].clone(), self.Y_D[idx].clone(), self.scales[idx].clone()
+        X_C = self.X_C[idx].clone()
+        Y_C = {task: self.Y_C[idx][task].clone() for task in self.Y_C[idx]}
+        X_D = self.X_D[idx].clone()
+        Y_D = {task: self.Y_D[idx][task].clone() for task in self.Y_D[idx]}
+        scales = self.scales[idx].clone()
+        return X_C, Y_C, X_D, Y_D, scales
     
     
 class CelebADataset(Dataset):
