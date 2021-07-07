@@ -59,8 +59,9 @@ for exp_name in eval_list:
     # skip if checkpoint not exists or still running
     ckpt_path = os.path.join(config_test.eval_dir, exp_name, 'checkpoints', 'best.pth')
     last_path = os.path.join(config_test.eval_dir, exp_name, 'checkpoints', 'last.pth')
-    if not (os.path.exists(ckpt_path) and os.path.exists(last_path)) :
-        print('checkpoint of {} does not exist or still running - skip...'.format(exp_name))
+    if not (os.path.exists(ckpt_path) and os.path.exists(last_path)):
+        if args.verbose:
+            print('checkpoint of {} does not exist or still running - skip...'.format(exp_name))
         continue
     
     # skip if already tested
