@@ -12,6 +12,7 @@ parser.add_argument('--split', type=str, default='test', choices=['test', 'valid
 parser.add_argument('--reset', default=False, action='store_true')
 parser.add_argument('--devices', nargs='+', default=['0', '1', '2', '3'])
 parser.add_argument('--n_threads', type=int, default=8)
+parser.add_argument('--verbose', '-v', default=False, action='store_true')
 args = parser.parse_args()
 
 if args.data == 'synthetic':
@@ -33,6 +34,8 @@ def run_thread(ip):
         command += ' --eval_name {}'.format(args.eval_name)
     if args.reset:
         command += ' --reset'
+    if args.verbose:
+        command += ' --verbose'
     subprocess.call(command.split())
     
 with mp.Pool(args.n_threads) as pool:

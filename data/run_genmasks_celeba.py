@@ -1,7 +1,8 @@
 import itertools
 import subprocess
 
-Ms = [10, 30, 512]
+# Ms = [10, 100, 512]
+Ms = [100]
 gammas = [0, 0.25, 0.5, 0.75]
 seeds = [0, 1, 2, 3, 4]
 splits = ['test', 'valid']

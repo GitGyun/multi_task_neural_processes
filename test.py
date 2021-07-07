@@ -46,25 +46,25 @@ if args.eval_dir != '':
 # set device and evaluation directory
 os.environ['CUDA_VISIBLE_DEVICES'] = args.device
 device = torch.device('cuda')
-args.eval_dir = os.path.join('experiments', args.eval_dir)
+config_test.eval_dir = os.path.join('experiments', config_test.eval_dir)
 if args.eval_name == '':
-    eval_list = os.listdir(args.eval_dir)
+    eval_list = os.listdir(config_test.eval_dir)
 else:
-    eval_list = [args.eval_name]
-
+    eval_list = [os.path.join(config_test.eval_dir, args.eval_name)]
 # load test dataloader
 test_loader = load_data(config_test, device, split=args.split)
 
 # test models in eval_list
 for exp_name in eval_list:
     # skip if checkpoint not exists or still running
-    ckpt_path = os.path.join(args.eval_dir, exp_name, 'checkpoints', 'best.pth')
-    last_path = os.path.join(args.eval_dir, exp_name, 'checkpoints', 'last.pth')
+    ckpt_path = os.path.join(config_test.eval_dir, exp_name, 'checkpoints', 'best.pth')
+    last_path = os.path.join(config_test.eval_dir, exp_name, 'checkpoints', 'last.pth')
     if not (os.path.exists(ckpt_path) and os.path.exists(last_path)) :
+        print('checkpoint of {} does not exist or still running - skip...'.format(exp_name))
         continue
     
     # skip if already tested
-    result_dir = os.path.join(args.eval_dir, exp_name, 'results')
+    result_dir = os.path.join(config_test.eval_dir, exp_name, 'results')
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
     result_path = os.path.join(result_dir, 'result_gamma{}_seed{}_{}.pth'.format(args.gamma, args.seed, args.split))

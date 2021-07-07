@@ -6,7 +6,7 @@ eval_dir: 'runs_celeba'
 
 # evaluation configs
 global_batch_size: 10
-M: 30
+M: 100
 N: 1024
 K: 5
 L: 5

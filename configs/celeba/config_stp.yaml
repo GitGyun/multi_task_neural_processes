@@ -17,7 +17,7 @@ n_steps: 200000
 global_batch_size: 10
 
 # evaluation configs
-M: 30
+M: 100
 N: 1024
 K: 1
 L: 1
