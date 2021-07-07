@@ -67,7 +67,7 @@ for exp_name in eval_list:
     result_dir = os.path.join(args.eval_dir, exp_name, 'results')
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
-    result_path = os.path.join(result_dir, 'result_gamma{}_seed{}_{}.pth'.format(args.gamma, args.seed, args.split))
+    result_path = os.path.join(result_dir, 'result_M{}_gamma{}_seed{}_{}.pth'.format(args.M, args.gamma, args.seed, args.split))
     if os.path.exists(result_path) and not args.reset:
         continue
     
