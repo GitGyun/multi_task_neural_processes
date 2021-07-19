@@ -18,7 +18,7 @@ args = parser.parse_args()
 if args.data == 'synthetic':
     Ms = [5, 10, 20]
 elif args.data == 'celeba':
-    Ms = [10, 30, 512]
+    Ms = [10, 100, 512]
 gammas = [0, 0.25, 0.5, 0.75]
 seeds = [0, 1, 2, 3, 4]
 

@@ -37,6 +37,8 @@ def configure_experiment(config, args):
         config.implicit_global_latent = True
     if args.data == 'synthetic_noised':
         config.noised = True
+    else:
+        config.noised = False
     
     # set seeds
     torch.backends.cudnn.deterministic = True
