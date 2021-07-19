@@ -35,6 +35,8 @@ def configure_experiment(config, args):
         config.deterministic_path = False
     if args.implicit_global_latent:
         config.implicit_global_latent = True
+    if args.data == 'synthetic_noised':
+        config.noised = True
     
     # set seeds
     torch.backends.cudnn.deterministic = True
@@ -88,7 +90,7 @@ def configure_experiment(config, args):
     return logger, save_path, log_keys
 
 
-def plot_curves(X_C, Y_C, X_D, Y_D, Y_D_pmeans, logger, Y_C_imp=None):
+def plot_curves(X_C, Y_C, X_D, Y_D, Y_D_pmeans, logger, Y_C_imp=None, Y_D_denoised=None):
     '''
     Plot multiple predictions and predictive mean over GT task functions, with imputed values if given.
     '''
@@ -107,7 +109,11 @@ def plot_curves(X_C, Y_C, X_D, Y_D, Y_D_pmeans, logger, Y_C_imp=None):
                 plt.plot(X_D[j].cpu(), sample.cpu(), color=colors[task], alpha=0.1)
 
             plt.plot(X_D[j].cpu(), Y_D_pmeans[task][j].mean(0).cpu(), color=colors[task])
-            plt.plot(X_D[j].cpu(), Y_D[task][j].cpu(), color='k')
+            if Y_D_denoised is not None:
+                plt.plot(X_D[j].cpu(), Y_D_denoised[task][j].cpu(), color='k')
+                plt.scatter(X_D[j].cpu(), Y_D[task][j].cpu(), color='k', s=3, alpha=0.3)
+            else:
+                plt.plot(X_D[j].cpu(), Y_D[task][j].cpu(), color='k')
         plt.tight_layout()
 
         buf = io.BytesIO()

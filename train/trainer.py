@@ -65,6 +65,8 @@ def evaluate(model, test_loader, device, config, logger=None,
     for b_idx, test_data in enumerate(test_loader):
         if config.data == 'synthetic':
             X_C, Y_C, X_D, Y_D, scales = to_device(test_data, device)
+        elif config.data == 'synthetic_noised':
+            X_C, Y_C, X_D, Y_D, Y_D_denoised, scales = to_device(test_data, device)
         elif config.data == 'celeba':
             X_C, Y_C, X_D, Y_D = to_device(test_data, device)
             scales = None
@@ -83,6 +85,8 @@ def evaluate(model, test_loader, device, config, logger=None,
         if logger is not None:
             if config.data == 'synthetic' and b_idx == 0:
                 plot_curves(X_C, Y_C, X_D, Y_D, Y_D_pmeans, logger, Y_C_imp)
+            if config.data == 'synthetic_noised' and b_idx == 0:
+                plot_curves(X_C, Y_C, X_D, Y_D, Y_D_pmeans, logger, Y_C_imp, Y_D_denoised)
             elif config.data == 'celeba' and b_idx == 1:
                 plot_images(X_C, Y_C, X_D, Y_D, Y_D_pred, logger, Y_C_imp)
 

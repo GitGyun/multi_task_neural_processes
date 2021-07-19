@@ -17,7 +17,7 @@ colors = {
     'gaussian': 'c'
 }
 
-def generate_data(n_datasets, n_examples, random_range=True):
+def generate_data(n_datasets, n_examples, random_range=True, noised=False):
     meta_info = {}
     X = []
     Y = {task: [] for task in tasks}
@@ -43,7 +43,12 @@ def generate_data(n_datasets, n_examples, random_range=True):
         meta_info[dataset]['c'] = c
         
         for task in tasks:
-            y = a*activations[task](w*x + b) + c
+            if noised:
+                noise = a*0.05*torch.randn(x.size())
+            else:
+                noise = 0
+                
+            y = a*activations[task](w*x + b) + c + noise
             Y[task].append(y)
 
     for dataset in range(n_datasets):
@@ -66,20 +71,27 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--n_datasets', type=int, default=1000)
     parser.add_argument('--n_examples', type=int, default=200)
-    parser.add_argument('--fixed_range', '-fr', default=False, action='store_true')
+    parser.add_argument('--random_range', '-rr', default=False, action='store_true')
+    parser.add_argument('--noised', default=False, action='store_true')
     parser.add_argument('--postfix', '-ptf', type=str, default='')
     parser.add_argument('--name', type=str, default='multi_data')
     args = parser.parse_args()
 
-    X, Y, meta_info = generate_data(args.n_datasets, args.n_examples, not args.fixed_range)
-    torch.save((X, Y, meta_info), '{}.pth'.format(args.name + args.postfix))
+    X, Y, meta_info = generate_data(args.n_datasets, args.n_examples, args.random_range, args.noised)
+    if args.noised:
+        args.postfix += '_noised'
+    args.name += args.postfix
+    torch.save((X, Y, meta_info), '{}.pth'.format(args.name))
 
-#     plt.figure(figsize=(40, 12))
-#     for dataset in range(10):
-#         plt.subplot(2, 5, dataset+1)
-#         interval = torch.linspace(meta_info[dataset]['center'] - 5, meta_info[dataset]['center'] + 5, args.n_examples).unsqueeze(1)
-#         for task in Y:
-#             values = meta_info[dataset]['a']*activations[task](meta_info[dataset]['w']*interval + meta_info[dataset]['b']) + meta_info[dataset]['c']
-#             plt.plot(interval, values, color=colors[task])
+    plt.figure(figsize=(40, 12))
+    for dataset in range(10):
+        plt.subplot(2, 5, dataset+1)
+        interval = torch.linspace(meta_info[dataset]['center'] - 5, meta_info[dataset]['center'] + 5, args.n_examples).unsqueeze(1)
+        for task in Y:
+            values = meta_info[dataset]['a']*activations[task](meta_info[dataset]['w']*interval + meta_info[dataset]['b']) + meta_info[dataset]['c']
+            if args.noised:
+                values_noised = values + 0.05*meta_info[dataset]['a']*torch.randn(interval.size())
+                plt.scatter(interval, values_noised, color=colors[task], s=3, alpha=0.3)
+            plt.plot(interval, values, color=colors[task])
 
-#     plt.savefig('{}.png'.format(args.name))
+    plt.savefig('{}.png'.format(args.name))

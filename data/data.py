@@ -32,7 +32,7 @@ class SyntheticTrainDataset(Dataset):
     
     
 class SyntheticTestDataset(Dataset):
-    def __init__(self, data_path, datasets, tasks, N, M, gamma, seed, split='test'):
+    def __init__(self, data_path, datasets, tasks, N, M, gamma, seed, split='test', noised=False):
         '''
         Test dataset samples (X_D, Y_D).
         '''
@@ -45,14 +45,34 @@ class SyntheticTestDataset(Dataset):
         # prepare context data
         self.X_C = X[datasets, :M]
         self.Y_C = {task: Y[task][datasets, :M] for task in tasks}
+        self.M = M
         
         # randomly drop context labels with pre-computed masks
         if gamma > 0:
-            mask = torch.load(os.path.join('data', 'mask_indices', 'mask_M{}_gamma{}_seed{}_{}'.format(M, gamma, seed, split)))
+            mask_path = os.path.join('data', 'mask_indices', 'mask_M{}_gamma{}_seed{}_{}'.format(M, gamma, seed, split))
+            assert os.path.exists(mask_path)
+            mask = torch.load(mask_path)
             for t, task in enumerate(tasks):
                 self.Y_C[task] = torch.where(mask[:, :M, t].unsqueeze(-1).expand_as(self.Y_C[task]),
                                              float('nan')*self.Y_C[task],
                                              self.Y_C[task])
+                
+        # generate random noise
+        if noised:
+            noise_path = os.path.join('data', 'noises', 'noise_N{}_seed{}_{}'.format(N, seed, split))
+            if not os.path.exists(noise_path):
+                os.makedirs(os.path.join('data', 'noises'), exist_ok=True)
+                self.noise = {
+                    task: torch.stack([
+                        0.05*meta_info[dataset]['a']*torch.randn(N, 1)
+                        for dataset in datasets
+                    ])
+                    for task in tasks
+                }
+                torch.save(self.noise, noise_path)
+            else:
+                self.noise = torch.load(noise_path)
+        self.noised = noised
         
         # prepare target data
         self.X_D = torch.stack([torch.linspace(-5, 5, N).unsqueeze(1) for dataset in datasets])
@@ -69,17 +89,30 @@ class SyntheticTestDataset(Dataset):
         # rearrange data
         self.Y_C = [{task: self.Y_C[task][i] for task in tasks} for i in range(len(datasets))]
         self.Y_D = [{task: self.Y_D[task][i] for task in tasks} for i in range(len(datasets))]
+        if self.noised:
+            self.noise = [{task: self.noise[task][i] for task in tasks} for i in range(len(datasets))]
         
     def __len__(self):
         return len(self.X_C)
     
     def __getitem__(self, idx):
-        X_C = self.X_C[idx].clone()
-        Y_C = {task: self.Y_C[idx][task].clone() for task in self.Y_C[idx]}
-        X_D = self.X_D[idx].clone()
-        Y_D = {task: self.Y_D[idx][task].clone() for task in self.Y_D[idx]}
-        scales = self.scales[idx].clone()
-        return X_C, Y_C, X_D, Y_D, scales
+        if self.noised:
+            X_C = self.X_C[idx].clone()
+            Y_C = {task: self.Y_C[idx][task].clone() + self.noise[idx][task][:self.M].clone() for task in self.Y_C[idx]}
+            X_D = self.X_D[idx].clone()
+            Y_D = {task: self.Y_D[idx][task].clone() + self.noise[idx][task].clone() for task in self.Y_D[idx]}
+            Y_D_denoised = {task: self.Y_D[idx][task].clone() for task in self.Y_D[idx]}
+            scales = self.scales[idx].clone()
+            
+            return X_C, Y_C, X_D, Y_D, Y_D_denoised, scales
+        else:
+            X_C = self.X_C[idx].clone()
+            Y_C = {task: self.Y_C[idx][task].clone() for task in self.Y_C[idx]}
+            X_D = self.X_D[idx].clone()
+            Y_D = {task: self.Y_D[idx][task].clone() for task in self.Y_D[idx]}
+            scales = self.scales[idx].clone()
+
+            return X_C, Y_C, X_D, Y_D, scales
     
     
 class CelebADataset(Dataset):
@@ -135,7 +168,7 @@ class CelebATrainDataset(CelebADataset):
     
 
 class CelebATestDataset(CelebADataset):
-    def __init__(self, data_path, datasets, tasks, N, M, gamma, seed, split):
+    def __init__(self, data_path, datasets, tasks, N, M, gamma, seed, split, noised=False):
         super().__init__(data_path, datasets, tasks, N)
         self.M = M
         self.gamma = gamma
@@ -244,7 +277,7 @@ def load_data(config, device, split='trainval'):
     '''
     Load train & valid or test data and return the iterator & loader.
     '''
-    if config.data == 'synthetic':
+    if config.data == 'synthetic' or config.data == 'synthetic_noised':
         train_datasets = list(range(900))
         valid_datasets = list(range(900, 950))
         test_datasets = list(range(950, 1000))
@@ -273,7 +306,7 @@ def load_data(config, device, split='trainval'):
     # load valid loader
     if split == 'valid' or split == 'trainval':
         valid_data = TestDataset(config.data_path, valid_datasets, config.tasks,
-                                 config.N, config.M, config.gamma_test, config.seed, split='valid')
+                                 config.N, config.M, config.gamma_test, config.seed, split='valid', noised=config.noised)
         valid_loader = DataLoader(valid_data, batch_size=config.global_batch_size,
                                   shuffle=False, pin_memory=(device.type == 'cuda'), drop_last=False, num_workers=4)
     
@@ -281,7 +314,7 @@ def load_data(config, device, split='trainval'):
     if split == 'test':
 
         test_data = TestDataset(config.data_path, test_datasets, config.tasks,
-                                config.N, config.M, config.gamma_test, config.seed, split='test')
+                                config.N, config.M, config.gamma_test, config.seed, split='test', noised=config.noised)
         test_loader = DataLoader(test_data, batch_size=config.global_batch_size,
                                  shuffle=False, pin_memory=(device.type == 'cuda'), drop_last=False, num_workers=4)
 

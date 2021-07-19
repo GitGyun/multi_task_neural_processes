@@ -18,7 +18,7 @@ torch.set_num_threads(1)
 
 # arguments
 parser = argparse.ArgumentParser()
-parser.add_argument('--data', type=str, default='synthetic', choices=['synthetic', 'celeba'])
+parser.add_argument('--data', type=str, default='synthetic', choices=['synthetic', 'synthetic_noised', 'celeba'])
 parser.add_argument('--model', type=str, default='mtp', choices=['stp', 'jtp', 'mtp'])
 parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--name_postfix', '-ptf', type=str, default='')
