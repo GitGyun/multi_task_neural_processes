@@ -17,7 +17,7 @@ torch.set_num_threads(1)
 
 # arguments
 parser = argparse.ArgumentParser()
-parser.add_argument('--data', type=str, default='synthetic', choices=['synthetic', 'celeba'])
+parser.add_argument('--data', type=str, default='synthetic', choices=['synthetic', 'synthetic_noised', 'celeba'])
 parser.add_argument('--eval_dir', type=str, default='')
 parser.add_argument('--eval_name', type=str, default='')
 parser.add_argument('--split', type=str, default='test', choices=['test', 'valid'])
@@ -42,6 +42,10 @@ if args.global_batch_size > 0:
     config_test.global_batch_size = args.global_batch_size
 if args.eval_dir != '':
     config_test.eval_dir = args.eval_dir
+if args.data == 'synthetic_noised':
+    config_test.noised = True
+else:
+    config_test.noised = True
 
 # set device and evaluation directory
 os.environ['CUDA_VISIBLE_DEVICES'] = args.device
