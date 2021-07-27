@@ -35,10 +35,26 @@ def configure_experiment(config, args):
         config.deterministic_path = False
     if args.implicit_global_latent:
         config.implicit_global_latent = True
-    if args.data == 'synthetic_noised':
+    if args.global_latent_only:
+        config.global_latent_only = True
+    else:
+        config.global_latent_only = False
+    if args.cnp_det:
+        config.stochastic_path = config.context_posterior = False
+        config.deterministic_path2 = True
+    elif args.cnp_stc:
+        config.stochastic_path = config.context_posterior = True
+        config.deterministic_path2 = False
+    else:
+        config.deterministic_path2 = config.context_posterior = False
+    if args.data == 'synthetic_noised' or args.data == 'synthetic_tasknoised':
         config.noised = True
     else:
         config.noised = False
+    if args.data == 'synthetic_tasknoised':
+        config.tasknoised = True
+    else:
+        config.tasknoised = False
     
     # set seeds
     torch.backends.cudnn.deterministic = True

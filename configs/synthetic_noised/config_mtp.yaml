@@ -35,6 +35,7 @@ module_sizes: [2, 1, 4, 1]
 stochastic_path: True
 deterministic_path: True
 implicit_global_latent: False
+global_latent_only: False
 
 # logging configs
 log_iter: 100

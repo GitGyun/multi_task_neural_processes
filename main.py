@@ -18,7 +18,7 @@ torch.set_num_threads(1)
 
 # arguments
 parser = argparse.ArgumentParser()
-parser.add_argument('--data', type=str, default='synthetic', choices=['synthetic', 'synthetic_noised', 'celeba'])
+parser.add_argument('--data', type=str, default='synthetic', choices=['synthetic', 'synthetic_noised', 'synthetic_tasknoised', 'celeba'])
 parser.add_argument('--model', type=str, default='mtp', choices=['stp', 'jtp', 'mtp'])
 parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--name_postfix', '-ptf', type=str, default='')
@@ -31,6 +31,9 @@ parser.add_argument('--module_sizes', '-ms', nargs='+', default=[])
 parser.add_argument('--no_stochastic_path', '-nsp', default=False, action='store_true')
 parser.add_argument('--no_deterministic_path', '-ndp', default=False, action='store_true')
 parser.add_argument('--implicit_global_latent', '-igl', default=False, action='store_true')
+parser.add_argument('--global_latent_only', '-glo', default=False, action='store_true')
+parser.add_argument('--cnp_det', default=False, action='store_true')
+parser.add_argument('--cnp_stc', default=False, action='store_true')
 
 args = parser.parse_args()
 

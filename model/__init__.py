@@ -7,4 +7,5 @@ def get_model(config, device):
                                      config.tasks, config.layernorm, config.n_attn_heads,
                                      tuple(config.module_sizes),
                                      config.stochastic_path, config.deterministic_path,
-                                     config.implicit_global_latent).to(device)
+                                     config.implicit_global_latent, config.global_latent_only,
+                                     config.deterministic_path2, config.context_posterior).to(device)

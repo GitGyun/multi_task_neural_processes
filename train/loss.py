@@ -52,7 +52,10 @@ def compute_error(Y_D, Y_D_pred, scales=None):
         else:
             mse = (Y_D[task] - Y_D_pred[task]).pow(2)
             if scales is not None:
-                mse /= scales.pow(2)
+                if isinstance(scales, dict):
+                    mse /= scales[task].pow(2)
+                else:
+                    mse /= scales.pow(2)
             error[task] = mse.mean().cpu()
             
     return error

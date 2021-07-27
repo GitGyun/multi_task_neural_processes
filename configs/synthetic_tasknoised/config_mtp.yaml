@@ -1,0 +1,44 @@
+# data configs
+data: 'synthetic_tasknoised'
+data_path: 'data/multi_data_tasknoised.pth'
+tasks: ['sine', 'tanh', 'sigmoid', 'gaussian']
+
+# training configs
+lr: 0.00025
+lr_schedule: 'sqroot'
+warmup_iters: 1000
+
+beta: 1
+beta_schedule: 'linear_warmup'
+
+gamma_train: 0.5
+
+n_steps: 200000
+global_batch_size: 10
+
+# evaluation configs
+M: 10
+N: 200
+K: 5
+L: 5
+gamma_test: 0.5
+imputer_path: ''
+
+# model configs
+model: 'mtp'
+dim_x: 1
+dim_ys: {'sine': 1, 'tanh': 1, 'sigmoid': 1, 'gaussian': 1}
+dim_hidden: 512
+layernorm: False
+n_attn_heads: 4
+module_sizes: [2, 1, 4, 1]
+stochastic_path: True
+deterministic_path: True
+implicit_global_latent: False
+global_latent_only: False
+
+# logging configs
+log_iter: 100
+val_iter: 5000
+save_iter: 5000
+log_dir: 'runs_synthetic_tasknoised'

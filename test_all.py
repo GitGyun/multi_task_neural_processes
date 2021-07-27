@@ -5,17 +5,17 @@ import multiprocessing as mp
 import tqdm
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--data', type=str, default='synthetic', choices=['synthetic', 'synthetic_noised', 'celeba'])
+parser.add_argument('--data', type=str, default='synthetic', choices=['synthetic', 'synthetic_noised', 'synthetic_tasknoised', 'celeba'])
 parser.add_argument('--eval_dir', type=str, default='')
 parser.add_argument('--eval_name', type=str, default='')
-parser.add_argument('--split', type=str, default='test', choices=['test', 'valid'])
+parser.add_argument('--split', type=str, default='test', choices=['test', 'valid', 'subtrain'])
 parser.add_argument('--reset', default=False, action='store_true')
 parser.add_argument('--devices', nargs='+', default=['0', '1', '2', '3'])
 parser.add_argument('--n_threads', type=int, default=8)
 parser.add_argument('--verbose', '-v', default=False, action='store_true')
 args = parser.parse_args()
 
-if args.data == 'synthetic' or args.data == 'synthetic_noised':
+if args.data == 'synthetic' or args.data == 'synthetic_noised' or args.data == 'synthetic_tasknoised':
     Ms = [5, 10, 20]
 elif args.data == 'celeba':
     Ms = [10, 100, 512]

@@ -365,7 +365,9 @@ class JTP(nn.Module):
 
 class MTP(nn.Module):
     def __init__(self, dim_x, dim_ys, dim_hidden, tasks, ln, n_attn_heads,
-                 module_sizes, stochastic_path=True, deterministic_path=True, implicit_global_latent=False):
+                 module_sizes, stochastic_path=True, deterministic_path=True,
+                 implicit_global_latent=False, global_latent_only=False,
+                 deterministic_path2=False, context_posterior=False):
         '''
         description:
             MTP model
@@ -400,15 +402,22 @@ class MTP(nn.Module):
 
             implicit_global_latent:  wheter to implicitly specify global latent in stochastic path
                                      [Type] bool
+
+            global_latent_only:      wheter to use only global latent (without per-task latents)
+                                     [Type] bool
         '''
         super().__init__()
         self.tasks = tasks
-        assert stochastic_path or deterministic_path
+        assert stochastic_path or deterministic_path or deterministic_path2
+        assert not (stochastic_path and deterministic_path2)
         self.stochastic_path = stochastic_path
         self.deterministic_path = deterministic_path
         self.implicit_global_latent = implicit_global_latent
+        self.global_latent_only = global_latent_only
+        self.deterministic_path2 = deterministic_path2
+        self.context_posterior = context_posterior
         
-        # stochastic encoder
+        # aggregation modules
         if self.stochastic_path:
             self.feature_extractor_s = nn.ModuleList([
                 STEncoder(dim_x, dim_ys[task], dim_hidden, n_attn_heads,
@@ -433,12 +442,57 @@ class MTP(nn.Module):
                 )
                 self.global_latent_encoder = NormalEncoder(dim_hidden, dim_hidden)
                 
-                self.task_latent_encoder = nn.ModuleList([
-                    NormalEncoder(2*dim_hidden, dim_hidden)
+                if not self.global_latent_only:
+                    self.task_latent_encoder = nn.ModuleList([
+                        NormalEncoder(2*dim_hidden, dim_hidden)
+                        for task in tasks
+                    ])
+                    
+        elif self.deterministic_path2:
+            self.feature_extractor_s = nn.ModuleList([
+                STEncoder(dim_x, dim_ys[task], dim_hidden, n_attn_heads,
+                          module_sizes[0], ln=ln, pool=True)
+                for task in tasks
+            ])
+            
+            if self.implicit_global_latent:
+                self.global_attention = nn.Sequential(
+                    *[SAB(dim_hidden, n_attn_heads, ln=ln) for _ in range(module_sizes[3])],
+                )
+                
+                self.task_encoder = nn.ModuleList([
+                    nn.Sequential(
+                        nn.Linear(dim_hidden, dim_hidden),
+                        nn.ReLU(),
+                        nn.Linear(dim_hidden, dim_hidden)
+                    )
                     for task in tasks
                 ])
+            else:
+                self.global_attention = nn.Sequential(
+                    *[SAB(dim_hidden, n_attn_heads, ln=ln) for _ in range(module_sizes[3])],
+                    PMA(dim_hidden, n_attn_heads, 1, ln=ln),
+                    Squeeze(1),
+                )
+                
+                self.global_encoder = nn.Sequential(
+                    nn.Linear(dim_hidden, dim_hidden),
+                    nn.ReLU(),
+                    nn.Linear(dim_hidden, dim_hidden)
+                )
+                
+                if not self.global_latent_only:
+                    self.task_encoder = nn.ModuleList([
+                        nn.Sequential(
+                            nn.Linear(2*dim_hidden, dim_hidden),
+                            nn.ReLU(),
+                            nn.Linear(dim_hidden, dim_hidden)
+                        )
+                        for task in tasks
+                    ])
 
-        # deterministic encoder
+
+        # attention modules
         if self.deterministic_path:
             self.feature_extractor_d = nn.ModuleList([
                 STEncoder(dim_x, dim_ys[task], dim_hidden, n_attn_heads, module_sizes[0], ln=ln)
@@ -451,7 +505,7 @@ class MTP(nn.Module):
         # decoder
         self.decoder = nn.ModuleList([
             Decoder(dim_x, dim_hidden, dim_ys[task], module_sizes[2],
-                          stochastic_path, deterministic_path, normal=(task != 'segment'))
+                    stochastic_path or deterministic_path2, deterministic_path, normal=(task != 'segment'))
             for task in tasks
         ])
         
@@ -506,54 +560,80 @@ class MTP(nn.Module):
             for t, task in enumerate(self.tasks):
                 # prepare context and target
                 C = torch.cat((X_C, Y_C[task]), -1)
-                D = torch.cat((X_D, Y_D[task]), -1)
                 masks_C.append(C[..., -1].isnan())
+                if self.stochastic_path and not self.context_posterior:
+                    D = torch.cat((X_D, Y_D[task]), -1)
             
                 # stochastic paths
-                if self.stochastic_path:
+                if self.stochastic_path or self.deterministic_path2:
                     S_C[task] = self.feature_extractor_s[t](C, masks_C[-1])
-                    S_D[task] = self.feature_extractor_s[t](D)
+                    if self.stochastic_path and not self.context_posterior:
+                        S_D[task] = self.feature_extractor_s[t](D)
                 
                 # deterministic path
                 if self.deterministic_path:
                     U_C.append(self.feature_extractor_d[t](C, masks_C[-1]))
             
             # global latent encoding
-            if self.stochastic_path:
+            q_C_G = q_D_G = z = None
+            r_D = [None for _ in self.tasks]
+            if self.stochastic_path or self.deterministic_path2:
                 S_C = torch.stack([S_C[task] for task in self.tasks], 1)
                 S_C_G = self.global_attention(S_C)
-                S_D = torch.stack([S_D[task] for task in self.tasks], 1)
-                S_D_G = self.global_attention(S_D)
+                
+                if self.stochastic_path and not self.context_posterior:
+                    S_D = torch.stack([S_D[task] for task in self.tasks], 1)
+                    S_D_G = self.global_attention(S_D)
                 
                 if not self.implicit_global_latent:
-                    q_C_G = self.global_latent_encoder(S_C_G)
-                    q_D_G = self.global_latent_encoder(S_D_G)
-                    z = q_D_G.rsample()
-                else:
-                    q_C_G = q_D_G = None
-            else:
-                q_C_G = q_D_G = z = None
+                    if self.deterministic_path2:
+                        z = self.global_encoder(S_C_G)
+                    elif self.context_posterior:
+                        q_C_G = self.global_latent_encoder(S_C_G)
+                        z = q_C_G.rsample()
+                    else:
+                        q_C_G = self.global_latent_encoder(S_C_G)
+                        q_D_G = self.global_latent_encoder(S_D_G)
+                        z = q_D_G.rsample()
             
             # multi-task attention
             if self.deterministic_path:
                 U_C = torch.stack(U_C)
                 r_D = self.attention_module(X_D, X_C, U_C, masks=masks_C).permute(2, 0, 1, 3)
-            else:
-                r_D = [None for _ in self.tasks]
             
             p_Y = {}
             q_C = {}
             q_D = {}
             for t, task in enumerate(self.tasks):
                 # per-task latent encoding
-                if self.stochastic_path:
-                    if self.implicit_global_latent:
-                        q_C[task] = self.task_latent_encoder[t](S_C_G[:, t])
-                        q_D[task] = self.task_latent_encoder[t](S_D_G[:, t])
+                if self.stochastic_path or self.deterministic_path2:
+                    if self.global_latent_only:
+                        q_C = q_D = None
+                        v = z
+                    elif self.implicit_global_latent:
+                        if self.deterministic_path2:
+                            q_C = q_D = None
+                            v = self.task_encoder[t](S_C_G[:, t])
+                        elif self.context_posterior:
+                            q_C[task] = self.task_latent_encoder[t](S_C_G[:, t])
+                            q_D = None
+                            v = q_C[task].rsample()
+                        else:
+                            q_C[task] = self.task_latent_encoder[t](S_C_G[:, t])
+                            q_D[task] = self.task_latent_encoder[t](S_D_G[:, t])
+                            v = q_D[task].rsample()
                     else:
-                        q_C[task] = self.task_latent_encoder[t](torch.cat((S_C[:, t], z), -1))
-                        q_D[task] = self.task_latent_encoder[t](torch.cat((S_D[:, t], z), -1))
-                    v = q_D[task].rsample()
+                        if self.deterministic_path2:
+                            q_C = q_D = None
+                            v = self.task_encoder[t](torch.cat((S_C[:, t], 1), -1))
+                        elif self.context_posterior:
+                            q_C[task] = self.task_latent_encoder[t](torch.cat((S_C[:, t], z), -1))
+                            v = q_C[task].rsample()
+                        else:
+                            q_C[task] = self.task_latent_encoder[t](torch.cat((S_C[:, t], z), -1))
+                            q_D[task] = self.task_latent_encoder[t](torch.cat((S_D[:, t], z), -1))
+                            v = q_D[task].rsample()
+                        
                 else:
                     q_C = q_D = v = None
                 
@@ -571,32 +651,38 @@ class MTP(nn.Module):
                 masks_C.append(C[..., -1].isnan())
             
                 # stochastic paths
-                if self.stochastic_path:
+                if self.stochastic_path or self.deterministic_path2:
                     S_C[task] = self.feature_extractor_s[t](C, masks_C[-1])
                 
                 # deterministic path
                 if self.deterministic_path:
                     U_C.append(self.feature_extractor_d[t](C, masks_C[-1]))
             
+            
             # global latent encoding
-            if self.stochastic_path:
+            if self.stochastic_path or self.deterministic_path2:
                 S_C = torch.stack([S_C[task] for task in self.tasks], 1)
                 S_C_G = self.global_attention(S_C)
+                    
                 if not self.implicit_global_latent:
-                    q_C_G = self.global_latent_encoder(S_C_G)
+                    if self.deterministic_path2:
+                        z = self.global_encoder(S_C_G)
+                    else:
+                        q_C_G = self.global_latent_encoder(S_C_G)
             
             # multi-task attention
+            r_D = [None for _ in self.tasks]
             if self.deterministic_path:
                 U_C = torch.stack(U_C)
                 r_D = self.attention_module(X_D, X_C, U_C, masks=masks_C).permute(2, 0, 1, 3)
-            else:
-                r_D = [None for _ in self.tasks]
             
             # inference
             if not self.stochastic_path:
                 K = L = 1
             if self.implicit_global_latent:
                 K = 1
+            if self.global_latent_only:
+                L = 1
                 
             p_Ys = [{} for _ in range(K*L)]
             for k in range(K):
@@ -608,15 +694,28 @@ class MTP(nn.Module):
                 
                 for t, task in enumerate(self.tasks):
                     for l in range(L):
-                        if self.stochastic_path:
-                            if self.implicit_global_latent:
-                                q_C = self.task_latent_encoder[t](S_C_G[:, t])
+                        if self.stochastic_path or self.deterministic_path2:
+                            if self.global_latent_only:
+                                v = z
+                            elif self.implicit_global_latent:
+                                if self.stochastic_path:
+                                    q_C = self.task_latent_encoder[t](S_C_G[:, t])
+                                    if MAP:
+                                        v = q_C.mean
+                                    else:
+                                        v = q_C.sample()
+                                else:
+                                    v = self.task_encoder[t](S_C_G[:, t])
                             else:
-                                q_C = self.task_latent_encoder[t](torch.cat((S_C[:, t], z), -1))
-                            if MAP:
-                                v = q_C.mean
-                            else:
-                                v = q_C.sample()
+                                if self.stochastic_path:
+                                    q_C = self.task_latent_encoder[t](torch.cat((S_C[:, t], z), -1))
+                                    if MAP:
+                                        v = q_C.mean
+                                    else:
+                                        v = q_C.sample()
+                                else:
+                                    v = self.task_encoder[t](torch.cat((S_C[:, t], z), -1))
+                                    
                         else:
                             v = None
 

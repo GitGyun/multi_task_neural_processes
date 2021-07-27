@@ -32,7 +32,7 @@ class SyntheticTrainDataset(Dataset):
     
     
 class SyntheticTestDataset(Dataset):
-    def __init__(self, data_path, datasets, tasks, N, M, gamma, seed, split='test', noised=False):
+    def __init__(self, data_path, datasets, tasks, N, M, gamma, seed, split='test', noised=False, tasknoised=False):
         '''
         Test dataset samples (X_D, Y_D).
         '''
@@ -40,7 +40,10 @@ class SyntheticTestDataset(Dataset):
         X, Y, meta_info = torch.load(data_path)
         
         # save scales
-        self.scales = [meta_info[dataset]['a'] for dataset in datasets]
+        if tasknoised:
+            self.scales = [{task: meta_info[dataset][task]['a'] for task in tasks} for dataset in datasets]
+        else:
+            self.scales = [meta_info[dataset]['a'] for dataset in datasets]
 
         # prepare context data
         self.X_C = X[datasets, :M]
@@ -73,18 +76,30 @@ class SyntheticTestDataset(Dataset):
             else:
                 self.noise = torch.load(noise_path)
         self.noised = noised
+        self.tasknoised = tasknoised
         
         # prepare target data
         self.X_D = torch.stack([torch.linspace(-5, 5, N).unsqueeze(1) for dataset in datasets])
-        self.Y_D = {
-            task: torch.stack([
-                meta_info[dataset]['a'] * \
-                activations[task](meta_info[dataset]['w']*self.X_D[i] + meta_info[dataset]['b']) + \
-                meta_info[dataset]['c']
-                for i, dataset in enumerate(datasets)
-            ])
-            for task in tasks
-        }
+        if tasknoised:
+            self.Y_D = {
+                task: torch.stack([
+                    meta_info[dataset][task]['a'] * \
+                    activations[task](meta_info[dataset][task]['w']*self.X_D[i] + meta_info[dataset][task]['b']) + \
+                    meta_info[dataset][task]['c']
+                    for i, dataset in enumerate(datasets)
+                ])
+                for task in tasks
+            }
+        else:
+            self.Y_D = {
+                task: torch.stack([
+                    meta_info[dataset]['a'] * \
+                    activations[task](meta_info[dataset]['w']*self.X_D[i] + meta_info[dataset]['b']) + \
+                    meta_info[dataset]['c']
+                    for i, dataset in enumerate(datasets)
+                ])
+                for task in tasks
+            }
                 
         # rearrange data
         self.Y_C = [{task: self.Y_C[task][i] for task in tasks} for i in range(len(datasets))]
@@ -102,7 +117,10 @@ class SyntheticTestDataset(Dataset):
             X_D = self.X_D[idx].clone()
             Y_D = {task: self.Y_D[idx][task].clone() + self.noise[idx][task].clone() for task in self.Y_D[idx]}
             Y_D_denoised = {task: self.Y_D[idx][task].clone() for task in self.Y_D[idx]}
-            scales = self.scales[idx].clone()
+            if self.tasknoised:
+                scales = {task: self.scales[idx][task].clone() for task in self.scales[idx]}
+            else:
+                scales = self.scales[idx].clone()
             
             return X_C, Y_C, X_D, Y_D, Y_D_denoised, scales
         else:
@@ -168,7 +186,7 @@ class CelebATrainDataset(CelebADataset):
     
 
 class CelebATestDataset(CelebADataset):
-    def __init__(self, data_path, datasets, tasks, N, M, gamma, seed, split, noised=False):
+    def __init__(self, data_path, datasets, tasks, N, M, gamma, seed, split, **kwargs):
         super().__init__(data_path, datasets, tasks, N)
         self.M = M
         self.gamma = gamma
@@ -277,10 +295,11 @@ def load_data(config, device, split='trainval'):
     '''
     Load train & valid or test data and return the iterator & loader.
     '''
-    if config.data == 'synthetic' or config.data == 'synthetic_noised':
+    if config.data == 'synthetic' or config.data == 'synthetic_noised' or config.data == 'synthetic_tasknoised':
         train_datasets = list(range(900))
         valid_datasets = list(range(900, 950))
         test_datasets = list(range(950, 1000))
+        subtrain_datasets = list(range(50))
         
         TrainDataset = SyntheticTrainDataset
         TestDataset = SyntheticTestDataset
@@ -288,6 +307,7 @@ def load_data(config, device, split='trainval'):
         train_datasets = list(range(27000))
         valid_datasets = list(range(27000, 28500))
         test_datasets = list(range(28500, 30000))
+        subtrain_datasets = list(range(1500))
         
         TrainDataset = CelebATrainDataset
         TestDataset = CelebATestDataset
@@ -306,7 +326,7 @@ def load_data(config, device, split='trainval'):
     # load valid loader
     if split == 'valid' or split == 'trainval':
         valid_data = TestDataset(config.data_path, valid_datasets, config.tasks,
-                                 config.N, config.M, config.gamma_test, config.seed, split='valid', noised=config.noised)
+                                 config.N, config.M, config.gamma_test, config.seed, split='valid', noised=config.noised, tasknoised=config.tasknoised)
         valid_loader = DataLoader(valid_data, batch_size=config.global_batch_size,
                                   shuffle=False, pin_memory=(device.type == 'cuda'), drop_last=False, num_workers=4)
     
@@ -314,9 +334,16 @@ def load_data(config, device, split='trainval'):
     if split == 'test':
 
         test_data = TestDataset(config.data_path, test_datasets, config.tasks,
-                                config.N, config.M, config.gamma_test, config.seed, split='test', noised=config.noised)
+                                config.N, config.M, config.gamma_test, config.seed, split='test', noised=config.noised, tasknoised=config.tasknoised)
         test_loader = DataLoader(test_data, batch_size=config.global_batch_size,
                                  shuffle=False, pin_memory=(device.type == 'cuda'), drop_last=False, num_workers=4)
+    # load subtrain loader
+    if split == 'subtrain':
+
+        subtrain_data = TestDataset(config.data_path, subtrain_datasets, config.tasks,
+                                    config.N, config.M, config.gamma_test, config.seed, split='subtrain', noised=config.noised, tasknoised=config.tasknoised)
+        subtrain_loader = DataLoader(subtrain_data, batch_size=config.global_batch_size,
+                                     shuffle=False, pin_memory=(device.type == 'cuda'), drop_last=False, num_workers=4)
 
     # return
     if split == 'trainval':
@@ -327,3 +354,5 @@ def load_data(config, device, split='trainval'):
         return valid_loader
     elif split == 'test':
         return test_loader
+    elif split == 'subtrain':
+        return subtrain_loader

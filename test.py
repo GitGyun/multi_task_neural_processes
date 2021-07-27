@@ -17,10 +17,10 @@ torch.set_num_threads(1)
 
 # arguments
 parser = argparse.ArgumentParser()
-parser.add_argument('--data', type=str, default='synthetic', choices=['synthetic', 'synthetic_noised', 'celeba'])
+parser.add_argument('--data', type=str, default='synthetic', choices=['synthetic', 'synthetic_noised', 'synthetic_tasknoised', 'celeba'])
 parser.add_argument('--eval_dir', type=str, default='')
 parser.add_argument('--eval_name', type=str, default='')
-parser.add_argument('--split', type=str, default='test', choices=['test', 'valid'])
+parser.add_argument('--split', type=str, default='test', choices=['test', 'valid', 'subtrain'])
 parser.add_argument('--device', type=str, default='0')
 parser.add_argument('--reset', default=False, action='store_true')
 parser.add_argument('--verbose', '-v', default=False, action='store_true')
@@ -42,10 +42,14 @@ if args.global_batch_size > 0:
     config_test.global_batch_size = args.global_batch_size
 if args.eval_dir != '':
     config_test.eval_dir = args.eval_dir
-if args.data == 'synthetic_noised':
+if args.data == 'synthetic_noised' or args.data == 'synthetic_tasknoised':
     config_test.noised = True
 else:
-    config_test.noised = True
+    config_test.noised = False
+if args.data == 'synthetic_tasknoised':
+    config_test.tasknoised = True
+else:
+    config_test.tasknoised = False
 
 # set device and evaluation directory
 os.environ['CUDA_VISIBLE_DEVICES'] = args.device
@@ -61,9 +65,9 @@ test_loader = load_data(config_test, device, split=args.split)
 # test models in eval_list
 for exp_name in eval_list:
     # skip if checkpoint not exists or still running
-    ckpt_path = os.path.join(config_test.eval_dir, exp_name, 'checkpoints', 'best.pth')
+    best_path = os.path.join(config_test.eval_dir, exp_name, 'checkpoints', 'best.pth')
     last_path = os.path.join(config_test.eval_dir, exp_name, 'checkpoints', 'last.pth')
-    if not (os.path.exists(ckpt_path) and os.path.exists(last_path)):
+    if not (os.path.exists(best_path) and os.path.exists(last_path)):
         if args.verbose:
             print('checkpoint of {} does not exist or still running - skip...'.format(exp_name))
         continue
@@ -77,7 +81,7 @@ for exp_name in eval_list:
         continue
     
     # load model and config
-    ckpt = torch.load(ckpt_path, map_location=device)
+    ckpt = torch.load(best_path, map_location=device)
     config = ckpt['config']
     
     # for legacy
@@ -87,6 +91,12 @@ for exp_name in eval_list:
         config.deterministic_path = True
     if 'implicit_global_latent' not in config:
         config.implicit_global_latent = False
+    if 'global_latent_only' not in config:
+        config.global_latent_only = False
+    if 'deterministic_path2' not in config:
+        config.deterministic_path2 = False
+    if 'context_posterior' not in config:
+        config.context_posterior = False
     model = get_model(config, device)
     model.load_state_dict(ckpt['model'])
     if args.verbose:
