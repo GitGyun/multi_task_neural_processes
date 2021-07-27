@@ -27,6 +27,8 @@ def configure_experiment(config, args):
         config.lr = args.lr
     if args.global_batch_size > 0:
         config.global_batch_size = args.global_batch_size
+    if args.epsilon > 0:
+        config.epsilon = args.epsilon
     if len(args.module_sizes) > 0:
         config.module_sizes = [int(size) for size in args.module_sizes]
     if args.no_stochastic_path:

@@ -4,3 +4,4 @@ experiments*
 *.ipynb
 data/CelebAMask-HQ
 data/mask_indices
+scripts/ablation*

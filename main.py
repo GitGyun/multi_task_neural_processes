@@ -27,6 +27,7 @@ parser.add_argument('--debug_mode', '-debug', default=False, action='store_true'
 parser.add_argument('--n_steps', type=int, default=-1)
 parser.add_argument('--lr', type=float, default=-1)
 parser.add_argument('--global_batch_size', type=int, default=-1)
+parser.add_argument('--epsilon', type=float, default=-1)
 parser.add_argument('--module_sizes', '-ms', nargs='+', default=[])
 parser.add_argument('--no_stochastic_path', '-nsp', default=False, action='store_true')
 parser.add_argument('--no_deterministic_path', '-ndp', default=False, action='store_true')
