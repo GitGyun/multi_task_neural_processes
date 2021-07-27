@@ -31,6 +31,8 @@ def configure_experiment(config, args):
         config.epsilon = args.epsilon
     if len(args.module_sizes) > 0:
         config.module_sizes = [int(size) for size in args.module_sizes]
+    if len(args.M_range) > 0:
+        config.M_range_train = (int(args.M_range[0]), int(args.M_range[1]))
     if args.no_stochastic_path:
         config.stochastic_path = False
     if args.no_deterministic_path:

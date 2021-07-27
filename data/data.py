@@ -232,13 +232,16 @@ class CelebATestDataset(CelebADataset):
         return X_C, Y_C, X_D, Y_D
     
     
-def sample_context(X_D, Y_D, gamma=0):
+def sample_context(X_D, Y_D, gamma=0, M_range=None):
     '''
     Sample (X_C, Y_C) from (X_D, Y_D) with random number of contexts 4 <= M <= N,
     then randomly drop task labels with missing rate gamma.
     '''
     B, N = X_D.size()[:2]
-    M = 4 + np.random.choice(N//2 - 4)
+    if M_range is None:
+        M = 4 + np.random.choice(N//2 - 4)
+    else:
+        M = M_range[0] + np.random_choice(M_range[1] - M_range[0])
     
     X_C = X_D[:, :M].clone()
     Y_C = {task: Y_D[task][:, :M].clone() for task in Y_D}
@@ -278,14 +281,14 @@ def to_device(data, device):
     return to_device_wrapper(data)
 
 
-def get_train_iterator(train_loader, device, gamma=0):
+def get_train_iterator(train_loader, device, gamma=0, M_range=None):
     '''
     Iterator wrapper for train dataloader
     '''
     def get_batch():
         while True:
             for X_D, Y_D in train_loader:
-                X_C, Y_C = sample_context(X_D, Y_D, gamma)
+                X_C, Y_C = sample_context(X_D, Y_D, gamma, M_range)
                 batch = (X_C, Y_C, X_D, Y_D)
                 yield to_device(batch, device)
     return get_batch()
@@ -321,7 +324,7 @@ def load_data(config, device, split='trainval'):
         train_data = TrainDataset(config.data_path, train_datasets, config.tasks)
         train_loader = DataLoader(train_data, batch_size=config.global_batch_size,
                                   shuffle=True, pin_memory=(device.type == 'cuda'), drop_last=True, num_workers=4)
-        train_iterator = get_train_iterator(train_loader, device, config.gamma_train)
+        train_iterator = get_train_iterator(train_loader, device, config.gamma_train, config.M_range_train)
         
     # load valid loader
     if split == 'valid' or split == 'trainval':
