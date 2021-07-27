@@ -241,7 +241,7 @@ def sample_context(X_D, Y_D, gamma=0, M_range=None):
     if M_range is None:
         M = 4 + np.random.choice(N//2 - 4)
     else:
-        M = M_range[0] + np.random_choice(M_range[1] - M_range[0])
+        M = M_range[0] + np.random.choice(M_range[1] - M_range[0])
     
     X_C = X_D[:, :M].clone()
     Y_C = {task: Y_D[task][:, :M].clone() for task in Y_D}
