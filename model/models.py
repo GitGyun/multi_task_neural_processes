@@ -6,7 +6,7 @@ from .modules import *
   
         
 class STP(nn.Module):
-    def __init__(self, dim_x, dim_ys, dim_hidden, tasks, ln, n_attn_heads,
+    def __init__(self, dim_x, dim_ys, dim_hidden, tasks, ln, n_attn_heads, epsilon,
                  module_sizes, stochastic_path=True, deterministic_path=True, *null_args):
         '''
         description:
@@ -53,7 +53,7 @@ class STP(nn.Module):
                 for task in tasks
             ])
             self.task_latent_encoder = nn.ModuleList([
-                NormalEncoder(dim_hidden, dim_hidden)
+                NormalEncoder(dim_hidden, dim_hidden, epsilon)
                 for task in tasks
             ])
         
@@ -188,7 +188,7 @@ class STP(nn.Module):
         
         
 class JTP(nn.Module):
-    def __init__(self, dim_x, dim_ys, dim_hidden, tasks, ln, n_attn_heads,
+    def __init__(self, dim_x, dim_ys, dim_hidden, tasks, ln, n_attn_heads, epsilon,
                  module_sizes, stochastic_path=True, deterministic_path=True, *null_args):
         '''
         description:
@@ -234,7 +234,7 @@ class JTP(nn.Module):
         if self.stochastic_path:
             self.feature_extractor_s = STEncoder(dim_x, dim_y, dim_hidden,
                                                  n_attn_heads, module_sizes[0], ln=ln, pool=True)
-            self.global_latent_encoder = NormalEncoder(dim_hidden, dim_hidden)
+            self.global_latent_encoder = NormalEncoder(dim_hidden, dim_hidden, epsilon)
         
         # deterministic encoder
         if self.deterministic_path:
@@ -364,7 +364,7 @@ class JTP(nn.Module):
 
 
 class MTP(nn.Module):
-    def __init__(self, dim_x, dim_ys, dim_hidden, tasks, ln, n_attn_heads,
+    def __init__(self, dim_x, dim_ys, dim_hidden, tasks, ln, n_attn_heads, epsilon,
                  module_sizes, stochastic_path=True, deterministic_path=True,
                  implicit_global_latent=False, global_latent_only=False,
                  deterministic_path2=False, context_posterior=False):
@@ -431,7 +431,7 @@ class MTP(nn.Module):
                 )
                 
                 self.task_latent_encoder = nn.ModuleList([
-                    NormalEncoder(dim_hidden, dim_hidden)
+                    NormalEncoder(dim_hidden, dim_hidden, epsilon)
                     for task in tasks
                 ])
             else:
@@ -440,11 +440,11 @@ class MTP(nn.Module):
                     PMA(dim_hidden, n_attn_heads, 1, ln=ln),
                     Squeeze(1),
                 )
-                self.global_latent_encoder = NormalEncoder(dim_hidden, dim_hidden)
+                self.global_latent_encoder = NormalEncoder(dim_hidden, dim_hidden, epsilon)
                 
                 if not self.global_latent_only:
                     self.task_latent_encoder = nn.ModuleList([
-                        NormalEncoder(2*dim_hidden, dim_hidden)
+                        NormalEncoder(2*dim_hidden, dim_hidden, epsilon)
                         for task in tasks
                     ])
                     
