@@ -625,7 +625,7 @@ class MTP(nn.Module):
                     else:
                         if self.deterministic_path2:
                             q_C = q_D = None
-                            v = self.task_encoder[t](torch.cat((S_C[:, t], 1), -1))
+                            v = self.task_encoder[t](torch.cat((S_C[:, t], z), -1))
                         elif self.context_posterior:
                             q_C[task] = self.task_latent_encoder[t](torch.cat((S_C[:, t], z), -1))
                             q_D = None
