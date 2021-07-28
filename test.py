@@ -97,6 +97,8 @@ for exp_name in eval_list:
         config.deterministic_path2 = False
     if 'context_posterior' not in config:
         config.context_posterior = False
+    if 'epsilon' not in config:
+        config.epsilon = 0.1
     model = get_model(config, device)
     model.load_state_dict(ckpt['model'])
     if args.verbose:

@@ -628,6 +628,7 @@ class MTP(nn.Module):
                             v = self.task_encoder[t](torch.cat((S_C[:, t], 1), -1))
                         elif self.context_posterior:
                             q_C[task] = self.task_latent_encoder[t](torch.cat((S_C[:, t], z), -1))
+                            q_D = None
                             v = q_C[task].rsample()
                         else:
                             q_C[task] = self.task_latent_encoder[t](torch.cat((S_C[:, t], z), -1))
