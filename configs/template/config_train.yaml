@@ -1,0 +1,66 @@
+### data configs
+
+data: 'template'
+data_path: 'data/template/path_for_the_stored_data'
+tasks: ['task_1', 'task_2', 'task_3'] # list of task names
+task_blocks: [['task_1'], ['task_2', 'task_3']] # list of blocks or groups of tasks to be considered as a single task by concatenations
+
+dim_x: 1 # input dimension
+dim_ys: {'task_1': 1, 'task_2': 1, 'task_3': 1} # output dimensions or channels
+
+split_ratio: [0.8, 0.1, 0.1]
+num_workers: 4
+
+colors: {'task_1': 'r', 'task_2': 'g', 'task_3': 'b'}
+
+
+### training configs
+
+n_steps: 200000 # total training steps
+global_batch_size: 16 # number of datasets (multi-task functions) in a batch
+
+lr: 0.00025 # learning rate
+lr_schedule: 'sqroot'
+lr_warmup: 1000
+
+beta_G: 1 # beta coefficient for global kld
+beta_G_schedule: 'linear_warmup'
+beta_G_warmup: 10000
+
+beta_T: 1 # beta coefficient for per-task klds
+beta_T_schedule: 'linear_warmup'
+beta_T_warmup: 10000
+
+gamma_train: 0.5 # missing rate
+cs_range_train: null # context size, null means default range (len(tasks), ts // 2)
+ts_train: 100 # target size
+
+
+### validation configs
+
+cs_valid: 10
+ts_valid: 100
+ns_G: 5 # number of global sampling
+ns_T: 5 # number of per-task samplings
+
+gamma_valid: 0.5 # missing rate
+imputer_path: 'experiments/runs_template/stp/checkpoints/best_nll.pth' # imputer checkpoint path (for JTP)
+
+
+### model configs
+
+dim_hidden: 128 # width of the networks, serves as a basic unit in all layers except the input & output heads (and also the latent dimensions)
+module_sizes: [0, 2, 1, 4] # depth of the networks: (element-wise encoder, intra-task attention, inter-task attention, element-wise decoder)
+
+task_embedding: False
+layernorm: False # layernorm in attentions
+n_attn_heads: 4 # number of attention heads
+epsilon: 0.1 # minimum standard deviation for Normal latent variables
+
+
+### logging configs
+
+log_iter: 100 # interval between tqdm and tensorboard logging of training metrics
+val_iter: 5000 # interval between validation and tensorboard logging of validation metrics
+save_iter: 5000 # interval between checkpointing
+log_dir: 'runs_template' # directory for saving checkpoints and logs

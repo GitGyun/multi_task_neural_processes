@@ -1,12 +1,27 @@
-# data configs
-data: 'synthetic'
-data_path: 'data/multi_data.pth'
-tasks: ['sine', 'tanh', 'sigmoid', 'gaussian']
-eval_dir: 'runs_synthetic'
+### data configs
 
-# evaluation configs
-global_batch_size: 10
-M: 10
-N: 1000
-K: 5
-L: 5
+data: 'synthetic'
+data_path: 'data/synthetic/sine,tanh,sigmoid,gaussian_N1000_n200.pth'
+tasks: ['sine', 'tanh', 'sigmoid', 'gaussian'] # list of task names
+task_blocks: null # list of blocks or groups of tasks to be considered as a single task by concatenations, null means singleton blocks
+
+dim_x: 1 # input dimension
+dim_ys: {'sine': 1, 'tanh': 1, 'sigmoid': 1, 'gaussian': 1} # output dimensions or channels
+
+split_ratio: [0.8, 0.1, 0.1]
+num_workers: 4
+
+colors: {'sine': 'r', 'tanh': 'g', 'sigmoid': 'b', 'gaussian': 'c'}
+
+
+### test configs
+
+ts_test: 1000
+ns_G: 5 # number of global sampling (for JTP, MTP)
+ns_T: 5 # number of per-task samplings (for STP, MTP)
+
+imputer_path: 'experiments/runs_synthetic/stp/checkpoints/best_nll.pth' # imputer checkpoint path (for JTP)
+
+### checkpointing configs
+
+eval_dir: 'runs_synthetic' # directory where the models to evaluate are stored

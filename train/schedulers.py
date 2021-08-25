@@ -2,15 +2,14 @@ import math
 
 
 class LRScheduler(object):
-    """Learning Rate Scheduler
-    Cosine mode: ``lr = baselr * 0.5 * (1 + cos(iter/maxiter))``
-    Poly mode: ``lr = baselr * (1 - iter/maxiter) ^ 0.9``
-    """
+    '''
+    Custom learning rate scheduler for pytorch optimizer.
+    Assumes 1 <= self.iter <= 1 + num_iters.
+    '''
     def __init__(self, optimizer, mode, base_lr, num_iters, warmup_iters=1000,
                  from_iter=0, decay_degree=0.9, decay_steps=5000):
         self.optimizer = optimizer
         self.mode = mode
-        # print('Using {} LR Scheduler!'.format(self.mode))
         self.base_lr = base_lr
         self.lr = base_lr
         self.iter = from_iter
@@ -22,27 +21,24 @@ class LRScheduler(object):
     def step(self):
         self.iter += 1
         if self.mode == 'cos':
-            lr = 0.5 * self.lr * (1 + math.cos(1.0 * self.iter / self.N * math.pi))
+            self.lr = 0.5 * self.base_lr * (1 + math.cos(1.0 * self.iter / self.N * math.pi))
         elif self.mode == 'poly':
-            if self.iter == self.N:
-                lr = 0.0
-            else:
-                lr = self.lr * pow((1 - 1.0 * self.iter / self.N), self.decay_degree)
+            if self.iter < self.N:
+                self.lr = self.base_lr * pow((1 - 1.0 * self.iter / self.N), self.decay_degree)
         elif self.mode == 'step':
-            lr = self.lr * (0.1**(self.decay_steps // self.iter))
+            self.lr = self.base_lr * (0.1**(self.decay_steps // self.iter))
         elif self.mode == 'constant':
-            lr = self.lr
+            self.lr = self.base_lr
         elif self.mode == 'sqroot':
-            lr = self.lr * self.warmup_iters**0.5 * min(self.iter * self.warmup_iters**-1.5, self.iter**-0.5)
+            self.lr = self.base_lr * self.warmup_iters**0.5 * min(self.iter * self.warmup_iters**-1.5, self.iter**-0.5)
         else:
             raise NotImplemented
+            
         # warm up lr schedule
-        if self.warmup_iters > 0 and self.iter < self.warmup_iters:
-            lr = lr * 1.0 * self.iter / self.warmup_iters
-        assert lr >= 0
-        self._adjust_learning_rate(self.optimizer, lr)
-        
-        return lr
+        if self.warmup_iters > 0 and self.iter < self.warmup_iters and self.mode != 'sqroot':
+            self.lr = base_lr * 1.0 * self.iter / self.warmup_iters
+        assert self.lr >= 0
+        self._adjust_learning_rate(self.optimizer, self.lr)
 
     def _adjust_learning_rate(self, optimizer, lr):
         if len(optimizer.param_groups) == 1:
@@ -59,10 +55,15 @@ class LRScheduler(object):
         self._adjust_learning_rate(self.optimizer, self.lr)
         
         
-class BetaScheduler:
-    def __init__(self, mode, base_beta, n_steps, warmup_steps=10000):
+class HPScheduler:
+    '''
+    Custom hyper-parameter scheduler for any nonzero coefficient wrapped by dictionary.
+    '''
+    def __init__(self, coef_dict, coef_key, mode, base_coef, n_steps, warmup_steps=10000):
+        self.coef_dict = coef_dict
+        self.coef_key = coef_key
         self.mode = mode
-        self.base_beta = base_beta
+        self.base_coef = base_coef
         self.warmup_steps = warmup_steps
         self.n_steps = n_steps + 1
         self.iter = 0
@@ -70,9 +71,9 @@ class BetaScheduler:
     def step(self):
         self.iter += 1
         if self.mode == 'constant':
-            return self.base_beta
+            self.coef_dict[self.coef_key] = self.base_coef
         elif self.mode == 'linear_warmup':
-            return min(1, (self.iter / self.warmup_steps)) * self.base_beta
+             self.coef_dict[self.coef_key] = min(1, (self.iter / self.warmup_steps)) * self.base_coef
 #         elif self.mode == 'linear':
 #             return (self.iter / self.n_steps) * (self.beta_last - self.beta_init) + self.beta_init
 #         elif self.mode == 'inverse-linear':
@@ -82,13 +83,3 @@ class BetaScheduler:
 #             period = (self.n_steps - 1) // cycles
 #             iter_p = (self.iter - 1) % period
 #             return float(iter_p) / max(1, float(period - 1)) * (self.beta_last - self.beta_init) + self.beta_init
-        
-        
-class GammaScheduler:
-    def __init__(self, n_steps):
-        self.n_steps = n_steps + 1
-        self.iter = 0
-        
-    def step(self):
-        self.iter += 1
-        return (self.iter / self.n_steps)
