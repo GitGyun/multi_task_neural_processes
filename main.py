@@ -16,6 +16,11 @@ from train import train_step, evaluate, LRScheduler, HPScheduler, configure_expe
 # to prevent over-threading
 torch.set_num_threads(1)
 
+def str2bool(v):
+    if v == 'True' or v == 'true': return True
+    elif v == 'False' or v == 'false': return False
+    else: raise argparse.ArgumentTypeError('Boolean value expected.')
+
 # argument parser
 parser = argparse.ArgumentParser()
 
@@ -32,7 +37,11 @@ parser.add_argument('--n_steps', type=int, default=-1)
 parser.add_argument('--lr', type=float, default=-1)
 parser.add_argument('--global_batch_size', type=int, default=-1)
 parser.add_argument('--module_sizes', '-ms', nargs='+', default=[])
-parser.add_argument('--task_embedding', '-te', default=False, action='store_true')
+parser.add_argument('--n_attn_heads', '-nat', type=int, default=-1)
+parser.add_argument('--layernorm', '-ln', type=str2bool, default=None)
+parser.add_argument('--task_embedding', '-te', type=str2bool, default=None)
+parser.add_argument('--lr_schedule', '-lrs', type=str, default='', choices=['constant', 'sqroot', 'cos', 'poly'])
+parser.add_argument('--beta_T_schedule', '-bts', type=str, default='', choices=['constant', 'linear_warmup'])
 
 args = parser.parse_args()
 

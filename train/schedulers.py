@@ -36,7 +36,7 @@ class LRScheduler(object):
             
         # warm up lr schedule
         if self.warmup_iters > 0 and self.iter < self.warmup_iters and self.mode != 'sqroot':
-            self.lr = base_lr * 1.0 * self.iter / self.warmup_iters
+            self.lr = self.base_lr * 1.0 * self.iter / self.warmup_iters
         assert self.lr >= 0
         self._adjust_learning_rate(self.optimizer, self.lr)
 
