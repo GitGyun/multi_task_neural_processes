@@ -140,8 +140,8 @@ class SyntheticTestDataset(SyntheticDataset):
         if self.gamma > 0:
             mask_labels(Y_C, self.mask[idx, :self.context_size], self.task_blocks)
             
-        # scales
-        scales = self.meta_info[self.function_idxs[idx]]['a']
+        # gt parameters
+        gt_params = self.meta_info[self.function_idxs[idx]]
 
-        return X_C, Y_C, X_D, Y_D, Y_C_comp, scales
+        return X_C, Y_C, X_D, Y_D, Y_C_comp, gt_params
         

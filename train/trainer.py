@@ -75,7 +75,8 @@ def evaluate(model, test_loader, device, config, logger=None,
     n_datasets = 0
     for b_idx, test_data in enumerate(test_loader):
         if config.data == 'synthetic':
-            X_C, Y_C, X_D, Y_D, Y_C_comp, scales = to_device(test_data, device)
+            X_C, Y_C, X_D, Y_D, Y_C_comp, gt_params = to_device(test_data, device)
+            scales = gt_params['a']
         else:
             X_C, Y_C, X_D, Y_D, Y_C_comp = to_device(test_data, device)
             scales = None

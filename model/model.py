@@ -71,6 +71,11 @@ class MultiTaskNP(nn.Module):
             if self.global_latent:
                 self.inter_task_attention_s = STEncoder(dim_hidden, n_attn_heads, layernorm, module_sizes[2])
                 self.global_latent_encoder_s = LatentMLP(dim_hidden, dim_hidden, dim_hidden, epsilon=epsilon)
+                
+                # task embedding
+                if self.task_embedding:
+                    self.task_embedding_s = nn.Parameter(torch.randn(len(self.block_names), dim_hidden),
+                                                         requires_grad=True)
             
         # deterministic path        
         if self.deterministic_path:
@@ -94,6 +99,11 @@ class MultiTaskNP(nn.Module):
             if self.global_latent:
                 self.inter_task_attention_d = STEncoder(dim_hidden, n_attn_heads, layernorm, module_sizes[2])
                 self.global_latent_encoder_d = LatentMLP(dim_hidden, dim_hidden, dim_hidden, sigma=False)
+                
+                # task embedding
+                if self.task_embedding:
+                    self.task_embedding_d = nn.Parameter(torch.randn(len(self.block_names), dim_hidden),
+                                                         requires_grad=True)
         
         # local deterministic path
         if self.local_deterministic_path:
@@ -110,10 +120,11 @@ class MultiTaskNP(nn.Module):
             if self.global_latent:
                 self.inter_task_attention_l = MultiTaskAttention(dim_hidden, n_attn_heads, layernorm, module_sizes[2], pool=(not self.task_latents))
                 
-        # task embedding
-        if self.global_latent and self.task_embedding:
-            self.task_embeddings = nn.Parameter(torch.randn(len(self.block_names), dim_hidden),
-                                                requires_grad=True)
+                # task embedding
+                if self.task_embedding:
+                    self.task_embedding_l = nn.Parameter(torch.randn(len(self.block_names), dim_hidden),
+                                                         requires_grad=True)
+                
         
         # decoder
         self.decoder_head = nn.ModuleList([
@@ -129,20 +140,28 @@ class MultiTaskNP(nn.Module):
         
     def state_dict_global(self):
         state_dict = {}
+        
         if self.global_latent:
             if self.stochastic_path:
                 state_dict['inter_task_attention_s'] = self.inter_task_attention_s.state_dict()
                 state_dict['global_latent_encoder_s'] = self.global_latent_encoder_s.state_dict()
                 
+                if self.task_embedding:
+                    state_dict['task_embedding_s'] = self.task_embedding_s.data
+                
             if self.deterministic_path:
                 state_dict['inter_task_attention_d'] = self.inter_task_attention_d.state_dict()
                 state_dict['global_latent_encoder_d'] = self.global_latent_encoder_d.state_dict()
                 
+                if self.task_embedding:
+                    state_dict['task_embedding_d'] = self.task_embedding_d.data
+                
             if self.local_deterministic_path:
                 state_dict['inter_task_attention_l'] = self.inter_task_attention_l.state_dict()
                 
-            if self.task_embedding:
-                state_dict['task_embeddings'] = self.task_embeddings.data
+                if self.task_embedding:
+                    state_dict['task_embedding_l'] = self.task_embedding_l.data
+                
         
         return state_dict
                 
@@ -150,15 +169,18 @@ class MultiTaskNP(nn.Module):
     def state_dict_block(self, block):
         b_idx = self.block_names.index(block)
         state_dict = {}
+        
         if self.stochastic_path:
             state_dict['encoder_s'] = self.encoder_s[b_idx].state_dict()
             state_dict['intra_task_attention_s'] = self.intra_task_attention_s[b_idx].state_dict()
+            
             if self.task_latents:
                 state_dict['task_latent_encoder_s'] = self.task_latent_encoder_s[b_idx].state_dict()
         
         if self.deterministic_path:
             state_dict['encoder_d'] = self.encoder_d[b_idx].state_dict()
             state_dict['intra_task_attention_d'] = self.intra_task_attention_d[b_idx].state_dict()
+            
             if self.task_latents:
                 state_dict['task_latent_encoder_d'] = self.task_latent_encoder_d[b_idx].state_dict()
                 
@@ -173,8 +195,10 @@ class MultiTaskNP(nn.Module):
     
     def state_dict_(self):
         state_dict = {}
+        
         if self.global_latent:
             state_dict['global'] = self.state_dict_global()
+            
         for block in self.block_names:
             state_dict[block] = self.state_dict_block(block)
         
@@ -186,27 +210,35 @@ class MultiTaskNP(nn.Module):
                 self.inter_task_attention_s.load_state_dict(state_dict['inter_task_attention_s'])
                 self.global_latent_encoder_s.load_state_dict(state_dict['global_latent_encoder_s'])
                 
+                if self.task_embedding:
+                    self.task_embedding_s.data = state_dict['task_embedding_s']
+                
             if self.deterministic_path:
                 self.inter_task_attention_d.load_state_dict(state_dict['inter_task_attention_d'])
                 self.global_latent_encoder_d.load_state_dict(state_dict['global_latent_encoder_d'])
                 
+                if self.task_embedding:
+                    self.task_embedding_d.data = state_dict['task_embedding_d']
+                
             if self.local_deterministic_path:
                 self.inter_task_attention_l.load_state_dict(state_dict['inter_task_attention_l'])
                 
-            if self.task_embedding:
-                self.task_embeddings.data = state_dict['task_embeddings']
+                if self.task_embedding:
+                    self.task_embedding_l.data = state_dict['task_embedding_l']
     
     def load_state_dict_block(self, state_dict, block):
         b_idx = self.block_names.index(block)
         if self.stochastic_path:
             self.encoder_s[b_idx].load_state_dict(state_dict['encoder_s'])
             self.intra_task_attention_s[b_idx].load_state_dict(state_dict['intra_task_attention_s'])
+            
             if self.task_latents:
                 self.task_latent_encoder_s[b_idx].load_state_dict(state_dict['task_latent_encoder_s'])
                 
         if self.deterministic_path:
             self.encoder_d[b_idx].load_state_dict(state_dict['encoder_d'])
             self.intra_task_attention_d[b_idx].load_state_dict(state_dict['intra_task_attention_d'])
+            
             if self.task_latents:
                 self.task_latent_encoder_d[b_idx].load_state_dict(state_dict['task_latent_encoder_d'])
                 
@@ -300,8 +332,8 @@ class MultiTaskNP(nn.Module):
                     S_D_s_G = torch.stack([S_D_s[block] for block in self.block_names], 1)  # (B, n_blocks, n, dim_hidden)
                     
                     if self.task_embedding:
-                        S_C_s_G = S_C_s_G + self.task_embeddings.unsqueeze(0)
-                        S_D_s_G = S_D_s_G + self.task_embeddings.unsqueeze(0)
+                        S_C_s_G = S_C_s_G + self.task_embedding_s.unsqueeze(0)
+                        S_D_s_G = S_D_s_G + self.task_embedding_s.unsqueeze(0)
 
                     S_C_s_G = self.inter_task_attention_s(S_C_s_G)
                     S_D_s_G = self.inter_task_attention_s(S_D_s_G)
@@ -315,7 +347,7 @@ class MultiTaskNP(nn.Module):
                     S_C_d_G = torch.stack([S_C_d[block] for block in self.block_names], 1)  # (B, n_blocks, m, dim_hidden)
                     
                     if self.task_embedding:
-                        S_C_d_G = S_C_d_G + self.task_embeddings.unsqueeze(0)
+                        S_C_d_G = S_C_d_G + self.task_embedding_d.unsqueeze(0)
 
                     S_C_d_G = self.inter_task_attention_d(S_C_d_G)
 
@@ -326,7 +358,7 @@ class MultiTaskNP(nn.Module):
                     S_C_l_G = torch.stack([S_C_l[block] for block in self.block_names], 1)
                     
                     if self.task_embedding:
-                        S_C_l_G = S_C_l_G + self.task_embeddings.unsqueeze(0).unsqueeze(2)
+                        S_C_l_G = S_C_l_G + self.task_embedding_l.unsqueeze(0).unsqueeze(2)
                         
                     r_L = self.inter_task_attention_l(S_C_l_G)
             
