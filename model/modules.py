@@ -7,13 +7,17 @@ from .utils import masked_forward
 
 
 def MLP(dim_in, dim_out, dim_hidden, n_layers):
-    layers = [nn.Linear(dim_in, dim_hidden)]
-    for _ in range(n_layers-2):
+    assert n_layers >= 1
+    if n_layers == 1:
+        return nn.Linear(dim_in, dim_out)
+    else:
+        layers = [nn.Linear(dim_in, dim_hidden)]
+        for _ in range(n_layers-2):
+            layers.append(nn.ReLU(inplace=True))
+            layers.append(nn.Linear(dim_hidden, dim_hidden))
         layers.append(nn.ReLU(inplace=True))
-        layers.append(nn.Linear(dim_hidden, dim_hidden))
-    layers.append(nn.ReLU(inplace=True))
-    layers.append(nn.Linear(dim_hidden, dim_out))
-    return nn.Sequential(*layers)
+        layers.append(nn.Linear(dim_hidden, dim_out))
+        return nn.Sequential(*layers)
         
 
 class STEncoder(nn.Module):
@@ -46,6 +50,7 @@ class LatentMLP(nn.Module):
         self.epsilon = epsilon
         self.sigma = sigma
         
+        assert n_layers >= 2
         layers = [nn.Linear(dim_in, dim_hidden)]
         for _ in range(n_layers-2):
             layers.append(nn.ReLU(inplace=True))

@@ -28,6 +28,8 @@ def configure_experiment(config, args):
         config.lr = args.lr
     if args.global_batch_size > 0:
         config.global_batch_size = args.global_batch_size
+    if args.dim_hidden > 0:
+        config.dim_hidden = args.dim_hidden
 #     if args.epsilon > 0:
 #         config.epsilon = args.epsilon
     if len(args.module_sizes) > 0:

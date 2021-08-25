@@ -5,3 +5,4 @@ experiments*
 *.tar
 data/CelebAMask-HQ
 backups
+run_experiments.py

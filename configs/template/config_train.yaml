@@ -32,7 +32,7 @@ beta_T_schedule: 'linear_warmup'
 beta_T_warmup: 10000
 
 gamma_train: 0.5 # missing rate
-cs_range_train: null # context size, null means default range (len(tasks), ts // 2)
+cs_range_train: [4, 30] # context size, null means default range (len(tasks), ts // 2)
 ts_train: 100 # target size
 
 
@@ -50,7 +50,7 @@ imputer_path: 'experiments/runs_template/stp/checkpoints/best_nll.pth' # imputer
 ### model configs
 
 dim_hidden: 128 # width of the networks, serves as a basic unit in all layers except the input & output heads (and also the latent dimensions)
-module_sizes: [0, 2, 1, 4] # depth of the networks: (element-wise encoder, intra-task attention, inter-task attention, element-wise decoder)
+module_sizes: [2, 2, 1, 4] # depth of the networks: (element-wise encoder, intra-task attention, inter-task attention, element-wise decoder)
 
 task_embedding: False
 layernorm: False # layernorm in attentions
