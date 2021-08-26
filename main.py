@@ -59,7 +59,6 @@ with open(os.path.join('configs', args.data, 'config_train.yaml'), 'r') as f:
 
 # configure logging and checkpointing paths
 logger, save_dir, log_keys = configure_experiment(config, args)
-import ipdb; ipdb.set_trace()
 config_copy = copy.deepcopy(config)
 
 # set device
