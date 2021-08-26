@@ -8,7 +8,7 @@ from easydict import EasyDict
 import torch
 
 from dataset import load_data
-from model import get_model
+from model import get_model, DataParallel
 from train import train_step, evaluate, LRScheduler, HPScheduler, configure_experiment
 
 
@@ -69,6 +69,9 @@ train_iterator, valid_loader = load_data(config, device, split='trainval')
 
 # model, optimizer, and schedulers
 model = get_model(config, device)
+if torch.cuda.device_count() > 1:
+    model = DataParallel(model).to(device)
+
 optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
 lr_scheduler = LRScheduler(optimizer, config.lr_schedule, config.lr, config.n_steps, config.lr_warmup)
 if config.global_latent:

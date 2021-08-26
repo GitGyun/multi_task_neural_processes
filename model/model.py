@@ -14,6 +14,14 @@ def get_model(config, device):
                        config.n_attn_heads, config.activation, config.layernorm, config.dropout, config.skip, config.epsilon).to(device)
 
 
+class DataParallel(nn.DataParallel):
+    def state_dict_(self):
+        return self.module.state_dict_()
+    
+    def load_state_dict_(self, state_dict):
+        self.module.load_state_dict_(state_dict)
+
+
 class MultiTaskNP(nn.Module):
     def __init__(self, dim_x, dim_ys, dim_hidden, tasks, task_blocks, module_sizes,
                  task_latents, global_latent, stochastic_path, deterministic_path, local_deterministic_path, task_embedding,
@@ -491,26 +499,26 @@ class MultiTaskNP(nn.Module):
                 
             if self.global_latent and self.stochastic_path:
                 if MAP:
-                    z = q_C_G[0].unsqueeze(0)
+                    z = q_C_G[0].unsqueeze(1)
                 else:
-                    z = Normal(*q_C_G).sample((ns_G,))
+                    z = Normal(*q_C_G).sample((ns_G,)).transpose(0, 1)
             
             # per-task latent paths
             p_Y = {}
             for b_idx, block in enumerate(self.block_names):
-                decoder_input = [self.decoder_head[b_idx](X_D).unsqueeze(0).repeat(ns, 1, 1, 1)]
+                decoder_input = [self.decoder_head[b_idx](X_D).unsqueeze(1).repeat(1, ns, 1, 1)]
                 if self.task_latents:
                     if self.stochastic_path:
                         if self.global_latent:
-                            q_C_T = self.task_latent_encoder_s[b_idx](torch.cat((z, S_C_s[block].unsqueeze(0).repeat(ns_G, 1, 1)), -1))
+                            q_C_T = self.task_latent_encoder_s[b_idx](torch.cat((z, S_C_s[block].unsqueeze(1).repeat(1, ns_G, 1)), -1))
                         else:
-                            q_C_T = self.task_latent_encoder_s[b_idx](S_C_s[block].unsqueeze(0))
+                            q_C_T = self.task_latent_encoder_s[b_idx](S_C_s[block].unsqueeze(1))
                         
                         if MAP:
                             v = q_C_T[0]
                         else:
-                            v = Normal(*q_C_T).sample((ns_T,))
-                            v = v.reshape(ns, *v.size()[2:])
+                            v = Normal(*q_C_T).sample((ns_T,)).transpose(1, 2)
+                            v = v.reshape(ns, *v.size()[2:]).transpose(0, 1)
                         decoder_input.append(v.unsqueeze(2).repeat(1, 1, X_D.size(1), 1))
                             
                     if self.deterministic_path:
@@ -518,23 +526,23 @@ class MultiTaskNP(nn.Module):
                             r_T = self.task_latent_encoder_d[b_idx](torch.cat((r, S_C_d[block]), -1))
                         else:
                             r_T = self.task_latent_encoder_d[b_idx](S_C_d[block])
-                        decoder_input.append(r_T.unsqueeze(0).unsqueeze(2).repeat(ns, 1, X_D.size(1), 1))
+                        decoder_input.append(r_T.unsqueeze(1).unsqueeze(1).repeat(1, ns, X_D.size(1), 1))
                             
                     if self.local_deterministic_path:
                         if self.global_latent:
-                            decoder_input.append(r_L[:, b_idx].unsqueeze(0).repeat(ns, 1, 1, 1))
+                            decoder_input.append(r_L[:, b_idx].unsqueeze(1).repeat(1, ns, 1, 1))
                         else:
-                            decoder_input.append(S_C_l[block].unsqueeze(0).repeat(ns, 1, 1, 1))
+                            decoder_input.append(S_C_l[block].unsqueeze(1).repeat(1, ns, 1, 1))
                         
                 else:
                     if self.stochastic_path:
                         decoder_input.append(z.unsqueeze(2).repeat(1, 1, X_D.size(1), 1))
                     
                     if self.deterministic_path:
-                        decoder_input.append(r.unsqueeze(0).unsqueeze(2).repeat(ns, 1, X_D.size(1), 1))
+                        decoder_input.append(r.unsqueeze(1).unsqueeze(1).repeat(1, ns, X_D.size(1), 1))
                         
                     if self.local_deterministic_path:
-                        decoder_input.append(r_L.unsqueeze(0).repeat(ns, 1, 1, 1))
+                        decoder_input.append(r_L.unsqueeze(1).repeat(1, ns, 1, 1))
                         
                 p_Y[block] = self.decoder[b_idx](torch.cat(decoder_input, -1))
                     

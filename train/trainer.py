@@ -34,7 +34,7 @@ def inference_map(model, *test_data):
     p_Ys = model(X_C, Y_C, X_D, MAP=True)
     model.train()
     
-    return broadcast_squeeze(p_Ys, 0)
+    return broadcast_squeeze(p_Ys, 1)
     
     
 @torch.no_grad()
@@ -52,7 +52,7 @@ def inference_pmean(model, *test_data, ns_G=1, ns_T=1, get_pmeans=False):
 #     for task in Y_C:
 #         Y_D_pmeans[task] = torch.stack([p_Y[task][0] for p_Y in p_Ys], 1)
         
-    Y_D_pred = broadcast_mean(Y_D_pmeans, 0)
+    Y_D_pred = broadcast_mean(Y_D_pmeans, 1)
 #     Y_D_pred = {}
 #     for task in Y_C:
 #         Y_D_pred[task] = Y_D_pmeans[task].mean(1)
