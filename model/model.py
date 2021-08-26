@@ -11,13 +11,13 @@ def get_model(config, device):
     return MultiTaskNP(config.dim_x, config.dim_ys, config.dim_hidden, config.tasks, config.task_blocks_model,
                        config.module_sizes, config.task_latents, config.global_latent,
                        config.stochastic_path, config.deterministic_path, config.local_deterministic_path, config.task_embedding,
-                       config.layernorm, config.n_attn_heads, config.epsilon).to(device)
+                       config.layernorm, config.n_attn_heads, config.epsilon, config.act_fn, config.skip, config.dropout).to(device)
 
 
 class MultiTaskNP(nn.Module):
     def __init__(self, dim_x, dim_ys, dim_hidden, tasks, task_blocks, module_sizes,
                  task_latents, global_latent, stochastic_path, deterministic_path, local_deterministic_path, task_embedding,
-                 layernorm, n_attn_heads, epsilon):
+                 layernorm, n_attn_heads, epsilon, act_fn, skip, dropout):
 
         super().__init__()
         self.tasks = tasks
@@ -52,7 +52,8 @@ class MultiTaskNP(nn.Module):
         # stochastic path
         if self.stochastic_path:
             self.encoder_s = nn.ModuleList([
-                MLP(dim_x + self.dim_y_blocks[block], dim_hidden, dim_hidden, module_sizes[0])
+                MLP(dim_x + self.dim_y_blocks[block], dim_hidden, dim_hidden, module_sizes[0],
+                    act_fn, dr, layernorm, skip)
                 for block in self.block_names
             ])
             
@@ -64,13 +65,14 @@ class MultiTaskNP(nn.Module):
             if self.task_latents:
                 dim_in = dim_hidden*2 if self.global_latent else dim_hidden
                 self.task_latent_encoder_s = nn.ModuleList([
-                    LatentMLP(dim_in, dim_hidden, dim_hidden, epsilon=epsilon)
+                    LatentMLP(dim_in, dim_hidden, dim_hidden, 2, act_fn, dr, layernorm, skip, epsilon=epsilon)
                     for task in tasks
                 ])
             
             if self.global_latent:
                 self.inter_task_attention_s = STEncoder(dim_hidden, n_attn_heads, layernorm, module_sizes[2])
-                self.global_latent_encoder_s = LatentMLP(dim_hidden, dim_hidden, dim_hidden, epsilon=epsilon)
+                self.global_latent_encoder_s = LatentMLP(dim_hidden, dim_hidden, dim_hidden, 2,
+                                                         act_fn, dr, layernorm, skip, epsilon=epsilon)
                 
                 # task embedding
                 if self.task_embedding:
@@ -80,7 +82,8 @@ class MultiTaskNP(nn.Module):
         # deterministic path        
         if self.deterministic_path:
             self.encoder_d = nn.ModuleList([
-                MLP(dim_x + self.dim_y_blocks[block], dim_hidden, dim_hidden, module_sizes[0])
+                MLP(dim_x + self.dim_y_blocks[block], dim_hidden, dim_hidden, module_sizes[0],
+                    act_fn, dr, layernorm, skip)
                 for block in self.block_names
             ])
             
@@ -92,13 +95,14 @@ class MultiTaskNP(nn.Module):
             if self.task_latents:
                 dim_in = dim_hidden*2 if self.global_latent else dim_hidden
                 self.task_latent_encoder_d = nn.ModuleList([
-                    LatentMLP(dim_in, dim_hidden, dim_hidden, sigma=False)
+                    LatentMLP(dim_in, dim_hidden, dim_hidden, 2, act_fn, dr, layernorm, skip, sigma=False)
                     for task in tasks
                 ])
             
             if self.global_latent:
                 self.inter_task_attention_d = STEncoder(dim_hidden, n_attn_heads, layernorm, module_sizes[2])
-                self.global_latent_encoder_d = LatentMLP(dim_hidden, dim_hidden, dim_hidden, sigma=False)
+                self.global_latent_encoder_d = LatentMLP(dim_hidden, dim_hidden, dim_hidden, 2,
+                                                         act_fn, dr, layernorm, skip, sigma=False)
                 
                 # task embedding
                 if self.task_embedding:
@@ -108,7 +112,8 @@ class MultiTaskNP(nn.Module):
         # local deterministic path
         if self.local_deterministic_path:
             self.encoder_l = nn.ModuleList([
-                MLP(dim_x + self.dim_y_blocks[block], dim_hidden, dim_hidden, module_sizes[0])
+                MLP(dim_x + self.dim_y_blocks[block], dim_hidden, dim_hidden, module_sizes[0],
+                    act_fn, dr, layernorm, skip)
                 for block in self.block_names
             ])
             
@@ -134,7 +139,8 @@ class MultiTaskNP(nn.Module):
         
         dim_in = dim_hidden * (1 + int(self.stochastic_path) + int(self.deterministic_path) + int(self.local_deterministic_path))
         self.decoder = nn.ModuleList([
-            LatentMLP(dim_in, self.dim_y_blocks[block], dim_hidden, module_sizes[3], epsilon=epsilon, sigma_act=F.softplus)
+            LatentMLP(dim_in, self.dim_y_blocks[block], dim_hidden, module_sizes[3],
+                      act_fn, dr, layernorm, epsilon=epsilon, sigma_act=F.softplus)
             for block in self.block_names
         ])
         

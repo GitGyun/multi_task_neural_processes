@@ -6,18 +6,48 @@ from .attention import Attention, SAB, PMA
 from .utils import masked_forward
 
 
-def MLP(dim_in, dim_out, dim_hidden, n_layers):
-    assert n_layers >= 1
-    if n_layers == 1:
-        return nn.Linear(dim_in, dim_out)
-    else:
-        layers = [nn.Linear(dim_in, dim_hidden)]
-        for _ in range(n_layers-2):
-            layers.append(nn.ReLU(inplace=True))
-            layers.append(nn.Linear(dim_hidden, dim_hidden))
-        layers.append(nn.ReLU(inplace=True))
-        layers.append(nn.Linear(dim_hidden, dim_out))
-        return nn.Sequential(*layers)
+class FFB(nn.Module):
+    def __init__(self, dim_in, dim_out, act_fn, dr, layernorm):
+        super().__init__()
+        self.layers = nn.Sequential(
+            nn.Linear(dim_in, dim_out),
+            nn.LayerNorm(dim_out) if layernorm else nn.Identity(),
+            act_fn(),
+            nn.Dropout(dr),
+        )
+    
+    def forward(self, x):
+        return self.layers(x)
+        
+
+class MLP(nn.Module):
+    def __init__(dim_in, dim_out, dim_hidden, n_layers, act_fn=nn.ReLU, dr=0., layernorm=False, skip=False):
+        super().__init__()
+        assert n_layers >= 1
+        self.dim_in = dim_in
+        self.dim_hidden = dim_hidden
+        self.dim_out = dim_out
+        self.skip = skip
+
+        layers = []
+        for l_idx in range(n_layers):
+            di = dim_in if l_idx == 0 else dim_hidden
+            do = dim_out if l_idx == n_layers - 1 else dim_hidden
+            layers.append(FFB(di, do, act_fn, dr, layernorm))
+        self.layers = nn.ModuleList(layers)
+    
+    def forward(self, x):
+        for l_idx in range(len(self.layers)):
+            if self.skip:
+                if ((l_idx == 0 and self.dim_in != self.dim_hidden) or \
+                    (l_idx == len(self.layers) - 1 and self.dim_out != self.dim_hidden)):
+                    x = self.blocks[l_idx](x)
+                else:
+                    x = x + self.blocks[l_idx](x)
+            else:
+                x = self.blocks[l_idx](x)
+        
+        return x
         
 
 class STEncoder(nn.Module):
@@ -44,18 +74,15 @@ class STEncoder(nn.Module):
 
 class LatentMLP(nn.Module):
     def __init__(self, dim_in, dim_out, dim_hidden,
-                 n_layers=2, epsilon=0.1, sigma=True, sigma_act=torch.sigmoid):
+                 n_layers=2, act_fn=nn.ReLU, dr=0., layernorm=False, skip=False,
+                 epsilon=0.1, sigma=True, sigma_act=torch.sigmoid):
         super().__init__()
         
         self.epsilon = epsilon
         self.sigma = sigma
         
         assert n_layers >= 2
-        layers = [nn.Linear(dim_in, dim_hidden)]
-        for _ in range(n_layers-2):
-            layers.append(nn.ReLU(inplace=True))
-            layers.append(nn.Linear(dim_hidden, dim_hidden))
-        self.layers = nn.Sequential(*layers)
+        self.mlp = MLP(dim_in, dim_out, dim_hidden, n_layers-1, act_fn, dr, layernorm, skip)
         
         self.hidden_to_mu = nn.Linear(dim_hidden, dim_out)
         if self.sigma:
@@ -63,7 +90,7 @@ class LatentMLP(nn.Module):
             self.sigma_act = sigma_act
         
     def forward(self, x):
-        hidden = F.relu(self.layers(x))
+        hidden = self.mlp(x)
         
         mu = self.hidden_to_mu(hidden)
         if self.sigma:
