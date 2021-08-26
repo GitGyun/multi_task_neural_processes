@@ -22,30 +22,24 @@ def configure_experiment(config, args):
     config.architecture = args.architecture
     config.seed = args.seed
     config.name_postfix = args.name_postfix
-    if args.n_steps > 0:
-        config.n_steps = args.n_steps
-    if args.lr > 0:
-        config.lr = args.lr
-    if args.global_batch_size > 0:
-        config.global_batch_size = args.global_batch_size
-    if args.dim_hidden > 0:
-        config.dim_hidden = args.dim_hidden
-#     if args.epsilon > 0:
-#         config.epsilon = args.epsilon
-    if len(args.module_sizes) > 0:
-        config.module_sizes = [int(size) for size in args.module_sizes]
-    if args.n_attn_heads > 0:
-        config.n_attn_heads = args.n_attn_heads
-    if args.layernorm is not None:
-        config.layernorm = args.layernorm
-    if args.task_embedding is not None:
-        config.task_embedding = args.task_embedding
-#     if len(args.cs_range) > 0:
-#         config.cs_range_train = (int(args.cs_range[0]), int(args.cs_range[1]))
-    if args.lr_schedule != '':
-        config.lr_schedule = args.lr_schedule
-    if args.beta_T_schedule != '':
-        config.beta_T_schedule = args.beta_T_schedule
+    
+    # parse arguments
+    if args.n_steps > 0: config.n_steps = args.n_steps
+    if args.lr > 0: config.lr = args.lr
+    if args.global_batch_size > 0: config.global_batch_size = args.global_batch_size
+    if args.dim_hidden > 0: config.dim_hidden = args.dim_hidden
+    if len(args.module_sizes) > 0: config.module_sizes = [int(size) for size in args.module_sizes]
+    if args.n_attn_heads > 0: config.n_attn_heads = args.n_attn_heads
+    if args.dropout > 0: config.dropout = args.dropout
+        
+    if args.layernorm is not None: config.layernorm = args.layernorm
+    if args.skip is not None: config.skip = args.skip
+    if args.task_embedding is not None: config.task_embedding = args.task_embedding
+        
+    if args.lr_schedule != '': config.lr_schedule = args.lr_schedule
+    if args.beta_T_schedule != '': config.beta_T_schedule = args.beta_T_schedule
+    if args.beta_G_schedule != '': config.beta_G_schedule = args.beta_G_schedule
+    if args.activation != '': config.activation = args.activation
 
         
     # configure lvm

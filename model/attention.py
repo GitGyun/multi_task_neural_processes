@@ -7,7 +7,7 @@ from .utils import masked_forward
 
 
 class Attention(nn.Module):
-    def __init__(self, dim, num_heads=4, ln=False):
+    def __init__(self, dim, num_heads=4, act_fn=nn.ReLU, ln=False, dr=0.1):
         super().__init__()
         self.dim = dim
         self.num_heads = num_heads
@@ -17,9 +17,10 @@ class Attention(nn.Module):
         self.fc_v = nn.Linear(dim, dim, bias=False)
         self.fc_o = nn.Linear(dim, dim, bias=False)
         
-        self.attn_dropout = nn.Dropout(0.1)
-        self.residual_dropout1 = nn.Dropout(0.1)
-        self.residual_dropout2 = nn.Dropout(0.1)
+        self.activation = act_fn()
+        self.attn_dropout = nn.Dropout(dr)
+        self.residual_dropout1 = nn.Dropout(dr)
+        self.residual_dropout2 = nn.Dropout(dr)
         if ln:
             self.ln1 = nn.LayerNorm(dim)
             self.ln2 = nn.LayerNorm(dim)
@@ -58,7 +59,7 @@ class Attention(nn.Module):
         
         O = Q + self.residual_dropout1(O)
         O = O if getattr(self, 'ln1', None) is None else masked_forward(self.ln1, O, mask_Q.bool(), self.dim)
-        O = O + self.residual_dropout2(F.relu(masked_forward(self.fc_o, O, mask_Q.bool(), self.dim)))
+        O = O + self.residual_dropout2(self.activation(masked_forward(self.fc_o, O, mask_Q.bool(), self.dim)))
         O = O if getattr(self, 'ln2', None) is None else masked_forward(self.ln2, O, mask_Q.bool(), self.dim)
         
         if get_attn:
@@ -68,20 +69,20 @@ class Attention(nn.Module):
 
         
 class SAB(nn.Module):
-    def __init__(self, dim, num_heads, ln=False, *args, **kwargs):
+    def __init__(self, dim, num_heads, act_fn=nn.ReLU, ln=False, dr=0.1, *args, **kwargs):
         super().__init__()
-        self.attn = Attention(dim, num_heads, ln=ln)
+        self.attn = Attention(dim, num_heads, act_fn=act_fn, ln=ln, dr=dr)
 
     def forward(self, X, mask=None, **kwargs):
         return self.attn(X, X, mask_Q=mask, mask_K=mask, **kwargs)
     
 
 class PMA(nn.Module):
-    def __init__(self, dim, num_heads, num_seeds, ln=False):
+    def __init__(self, dim, num_heads, num_seeds, act_fn=nn.ReLU, ln=False, dr=0.1):
         super().__init__()
         self.S = nn.Parameter(torch.Tensor(1, num_seeds, dim))
         nn.init.xavier_uniform_(self.S)
-        self.attn = Attention(dim, num_heads, ln=ln)
+        self.attn = Attention(dim, num_heads, act_fn=act_fn, ln=ln, dr=dr)
 
     def forward(self, X, mask=None):
         return self.attn(self.S.repeat(X.size(0), 1, 1), X, mask_K=mask)

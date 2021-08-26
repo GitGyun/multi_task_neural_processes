@@ -7,11 +7,11 @@ from .utils import masked_forward
 
 
 class FFB(nn.Module):
-    def __init__(self, dim_in, dim_out, act_fn, dr, layernorm):
+    def __init__(self, dim_in, dim_out, act_fn, ln, dr):
         super().__init__()
         self.layers = nn.Sequential(
             nn.Linear(dim_in, dim_out),
-            nn.LayerNorm(dim_out) if layernorm else nn.Identity(),
+            nn.LayerNorm(dim_out) if ln else nn.Identity(),
             act_fn(),
             nn.Dropout(dr),
         )
@@ -21,7 +21,7 @@ class FFB(nn.Module):
         
 
 class MLP(nn.Module):
-    def __init__(dim_in, dim_out, dim_hidden, n_layers, act_fn=nn.ReLU, dr=0., layernorm=False, skip=False):
+    def __init__(self, dim_in, dim_out, dim_hidden, n_layers, act_fn=nn.ReLU, ln=False, dr=0., skip=False):
         super().__init__()
         assert n_layers >= 1
         self.dim_in = dim_in
@@ -33,7 +33,7 @@ class MLP(nn.Module):
         for l_idx in range(n_layers):
             di = dim_in if l_idx == 0 else dim_hidden
             do = dim_out if l_idx == n_layers - 1 else dim_hidden
-            layers.append(FFB(di, do, act_fn, dr, layernorm))
+            layers.append(FFB(di, do, act_fn, ln, dr))
         self.layers = nn.ModuleList(layers)
     
     def forward(self, x):
@@ -41,24 +41,24 @@ class MLP(nn.Module):
             if self.skip:
                 if ((l_idx == 0 and self.dim_in != self.dim_hidden) or \
                     (l_idx == len(self.layers) - 1 and self.dim_out != self.dim_hidden)):
-                    x = self.blocks[l_idx](x)
+                    x = self.layers[l_idx](x)
                 else:
-                    x = x + self.blocks[l_idx](x)
+                    x = x + self.layers[l_idx](x)
             else:
-                x = self.blocks[l_idx](x)
+                x = self.layers[l_idx](x)
         
         return x
         
 
 class STEncoder(nn.Module):
-    def __init__(self, dim_hidden, n_attn_heads, layernorm, n_layers, pool=True):
+    def __init__(self, dim_hidden, n_layers, n_heads, act_fn=nn.ReLU, ln=False, dr=0.1, pool=True):
         super().__init__()
         self.layers = nn.ModuleList([
-            SAB(dim_hidden, n_attn_heads, ln=layernorm)
+            SAB(dim_hidden, n_heads, ln=ln, dr=dr)
             for _ in range(n_layers)
         ])
         if pool:
-            self.pool = PMA(dim_hidden, n_attn_heads, 1, ln=layernorm)
+            self.pool = PMA(dim_hidden, n_heads, 1, act_fn=act_fn, ln=ln, dr=dr)
         else:
             self.pool = None
             
@@ -74,7 +74,7 @@ class STEncoder(nn.Module):
 
 class LatentMLP(nn.Module):
     def __init__(self, dim_in, dim_out, dim_hidden,
-                 n_layers=2, act_fn=nn.ReLU, dr=0., layernorm=False, skip=False,
+                 n_layers=2, act_fn=nn.ReLU, ln=False, dr=0., skip=False,
                  epsilon=0.1, sigma=True, sigma_act=torch.sigmoid):
         super().__init__()
         
@@ -82,7 +82,7 @@ class LatentMLP(nn.Module):
         self.sigma = sigma
         
         assert n_layers >= 2
-        self.mlp = MLP(dim_in, dim_out, dim_hidden, n_layers-1, act_fn, dr, layernorm, skip)
+        self.mlp = MLP(dim_in, dim_hidden, dim_hidden, n_layers-1, act_fn, ln, dr, skip)
         
         self.hidden_to_mu = nn.Linear(dim_hidden, dim_out)
         if self.sigma:
@@ -103,11 +103,12 @@ class LatentMLP(nn.Module):
         
         
 class CrossAttention(nn.Module):
-    def __init__(self, dim_q, dim_k, dim_v, num_heads, ln=False, num_layers=2):
+    def __init__(self, dim_q, dim_k, dim_v, n_layers, n_heads, act_fn=nn.ReLU, ln=False, dr=0.1):
         super().__init__()
         self.query_proj = nn.Linear(dim_q, dim_v)
         self.key_proj = nn.Linear(dim_k, dim_v)
-        self.attentions =  nn.ModuleList([Attention(dim_v, num_heads, ln=ln) for _ in range(num_layers)])
+        self.attentions =  nn.ModuleList([Attention(dim_v, n_heads, act_fn=act_fn, ln=ln, dr=dr)
+                                          for _ in range(n_layers)])
         
     def forward(self, Q, K, V, **kwargs):
         Q = self.query_proj(Q)
@@ -119,12 +120,12 @@ class CrossAttention(nn.Module):
     
     
 class MultiTaskAttention(nn.Module):
-    def __init__(self, dim_hidden, num_heads, ln=False, num_layers=1, pool=False):
+    def __init__(self, dim_hidden, n_layers, n_heads, act_fn=nn.ReLU, ln=False, dr=0.1, pool=False):
         super().__init__()
-        layers = [SAB(dim_hidden, num_heads, ln=ln) for _ in range(num_layers)]
+        layers = [SAB(dim_hidden, n_heads, act_fn=act_fn, ln=ln, dr=dr) for _ in range(n_layers)]
         self.pool = pool
         if self.pool:
-            layers.append(PMA(dim_hidden, num_heads, 1, ln=ln))
+            layers.append(PMA(dim_hidden, n_heads, 1, act_fn=act_fn, ln=ln, dr=dr))
         self.layers = nn.Sequential(*layers)
         
     def forward(self, Q):
