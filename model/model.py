@@ -147,7 +147,7 @@ class MultiTaskNP(nn.Module):
         dim_in = dim_hidden * (1 + int(self.stochastic_path) + int(self.deterministic_path) + int(self.local_deterministic_path))
         self.decoder = nn.ModuleList([
             LatentMLP(dim_in, self.dim_y_blocks[block], dim_hidden, module_sizes[3],
-                      act_fn, dr, ln, epsilon=epsilon, sigma_act=F.softplus)
+                      act_fn, ln, dr, epsilon=epsilon, sigma_act=F.softplus)
             for block in self.block_names
         ])
         

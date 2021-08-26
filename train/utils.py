@@ -30,7 +30,7 @@ def configure_experiment(config, args):
     if args.dim_hidden > 0: config.dim_hidden = args.dim_hidden
     if len(args.module_sizes) > 0: config.module_sizes = [int(size) for size in args.module_sizes]
     if args.n_attn_heads > 0: config.n_attn_heads = args.n_attn_heads
-    if args.dropout > 0: config.dropout = args.dropout
+    if args.dropout >= 0: config.dropout = args.dropout
         
     if args.layernorm is not None: config.layernorm = args.layernorm
     if args.skip is not None: config.skip = args.skip
