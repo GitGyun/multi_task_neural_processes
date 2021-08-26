@@ -14,6 +14,10 @@ num_workers: 4
 colors: {'sine': 'r', 'tanh': 'g', 'sigmoid': 'b', 'gaussian': 'c'}
 
 
+### validation configs
+
+ts_valid: 200
+
 ### test configs
 
 ts_test: 1000

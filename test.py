@@ -26,8 +26,8 @@ parser.add_argument('--device', type=str, default='0')
 parser.add_argument('--reset', default=False, action='store_true')
 parser.add_argument('--verbose', '-v', default=False, action='store_true')
 
-parser.add_argument('--cs_test', type=int, default=10)
-parser.add_argument('--gamma_test', type=float, default=0.)
+parser.add_argument('--cs', type=int, default=10)
+parser.add_argument('--gamma', type=float, default=0.)
 parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--global_batch_size', type=int, default=16)
 
@@ -36,8 +36,8 @@ args = parser.parse_args()
 # load test config
 with open(os.path.join('configs', args.data, 'config_test.yaml')) as f:
     config_test = EasyDict(yaml.safe_load(f))
-config_test.cs_test = args.cs_test
-config_test.gamma_test = args.gamma_test
+config_test[f'cs_{args.split}'] = args.cs
+config_test[f'gamma_{args.split}'] = args.gamma
 config_test.seed = args.seed
 config_test.global_batch_size = args.global_batch_size
 if args.eval_dir != '':
@@ -70,9 +70,8 @@ for exp_name in eval_list:
     
     # skip if already tested
     result_dir = os.path.join(config_test.eval_dir, exp_name, 'results')
-    if not os.path.exists(result_dir):
-        os.makedirs(result_dir)
-    result_path = os.path.join(result_dir, f'result_cs{args.cs_test}_gamma{args.gamma_test}_seed{args.seed}_{args.split}_from{args.eval_ckpt}.pth')
+    os.makedirs(result_dir, exist_ok=True)
+    result_path = os.path.join(result_dir, f'result_cs{args.cs}_gamma{args.gamma}_seed{args.seed}_{args.split}_from{args.eval_ckpt}.pth')
     if os.path.exists(result_path) and not args.reset:
         continue
     
@@ -83,7 +82,7 @@ for exp_name in eval_list:
     model.load_state_dict_(ckpt['model'])
     
     # load imputer
-    if config.model == 'jtp' and config_test.gamma_test > 0:
+    if config.model == 'jtp' and config_test.gamma > 0:
         assert os.path.exists(config_test.imputer_path)
         ckpt_imputer = torch.load(config_test.imputer_path)
         config_imputer = ckpt_imputer['config']

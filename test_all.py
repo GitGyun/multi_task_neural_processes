@@ -29,7 +29,7 @@ prod = list(itertools.product(cs_tests, gammas, seeds))
 def run_thread(ip):
     i, p = ip
     device = args.devices[i % len(args.devices)]
-    command = f'python test.py --device {device} --data {args.data} --split {args.split} --eval_ckpt {args.eval_ckpt} --global_batch_size {args.global_batch_size}' + ' --cs_test {} --gamma_test {} --seed {}'.format(*p)
+    command = f'python test.py --device {device} --data {args.data} --split {args.split} --eval_ckpt {args.eval_ckpt} --global_batch_size {args.global_batch_size}' + ' --cs {} --gamma {} --seed {}'.format(*p)
     if args.eval_dir != '':
         command += f' --eval_dir {args.eval_dir}'
     if args.eval_name != '':
