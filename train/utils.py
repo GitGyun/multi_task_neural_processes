@@ -181,11 +181,11 @@ def plot_curves(logger, task_blocks, X_C, Y_C, X_D, Y_D, Y_C_comp, Y_D_pred, Y_C
 
                 # plot predictions (either MAP or predictive means)
                 if pred_type == 'pmeans':
-                    for sample in Y_D_pred[task][:, idx_sub]:
+                    for sample in Y_D_pred[task][idx_sub]:
                         y_ps = sample.squeeze(-1).cpu()
                         plt.plot(x[p], y_ps[p], color=colors[task], alpha=0.1)
                     
-                    y_pm = Y_D_pred[task][:, idx_sub].mean(0).squeeze(-1).cpu()    
+                    y_pm = Y_D_pred[task][idx_sub].mean(0).squeeze(-1).cpu()    
                     error = (y_pm - y).pow(2).mean().item()
                     plt.plot(x[p], y_pm[p], color=colors[task], label=f'{error:.3f}')
                     
