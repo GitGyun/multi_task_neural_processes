@@ -98,4 +98,4 @@ for exp_name in eval_list:
     nlls, errors = evaluate(model, test_loader, device, config_test, imputer=imputer, config_imputer=config_imputer)
     if args.verbose:
         print(f'nll: {nlls}\nmse:{errors}')
-    torch.save({'nlls': nlls, 'errors': errors}, result_path)
+    torch.save({'nlls': nlls, 'errors': errors, 'global_step': ckpt['global_step']}, result_path)

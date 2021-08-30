@@ -50,7 +50,7 @@ imputer_path: 'experiments/runs_synthetic/stp/checkpoints/best_nll.pth' # impute
 ### model configs
 
 dim_hidden: 256 # width of the networks, serves as a basic unit in all layers except the input & output heads (and also the latent dimensions)
-module_sizes: [3, 3, 1, 5] # depth of the networks: (element-wise encoder, intra-task attention, inter-task attention, element-wise decoder)
+module_sizes: [3, 3, 2, 5] # depth of the networks: (element-wise encoder, intra-task attention, inter-task attention, element-wise decoder)
 task_embedding: False # task embedding in inter-task attention
 
 activation: 'gelu'
