@@ -16,7 +16,7 @@ colors: {'sine': 'r', 'tanh': 'g', 'sigmoid': 'b', 'gaussian': 'c'}
 
 ### training configs
 
-n_steps: 200000 # total training steps
+n_steps: 300000 # total training steps
 global_batch_size: 16 # number of datasets (multi-task functions) in a batch
 
 lr: 0.00025 # learning rate
