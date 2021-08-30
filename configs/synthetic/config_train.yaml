@@ -44,7 +44,7 @@ ns_G: 5 # number of global sampling
 ns_T: 5 # number of per-task samplings
 
 gamma_valid: 0.5 # missing rate
-imputer_path: 'experiments/runs_synthetic/stp/checkpoints/best_nll.pth' # imputer checkpoint path (for JTP)
+imputer_path: 'experiments/runs_synthetic/stp/checkpoints/best_error.pth' # imputer checkpoint path (for JTP)
 
 
 ### model configs
