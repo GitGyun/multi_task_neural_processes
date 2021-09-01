@@ -804,7 +804,7 @@ class SharedMultiTaskNP(nn.Module):
                     decoder_input.append(r.unsqueeze(1).unsqueeze(1).repeat(1, T, X_D.size(1), 1))
 
                 if self.local_deterministic_path:
-                    decoder_input.append(r_L)
+                    decoder_input.append(r_L.unsqueeze(1).repeat(1, T, 1, 1))
 
             p_Y = self.decoder(torch.cat(decoder_input, -1))
             
@@ -930,13 +930,13 @@ class SharedMultiTaskNP(nn.Module):
 
             else:
                 if self.stochastic_path:
-                    decoder_input.append(z.unsqueeze(3).repeat(1, 1, 1, X_D.size(1), 1))
+                    decoder_input.append(z.unsqueeze(2).unsqueeze(3).repeat(1, 1, T, X_D.size(1), 1))
 
                 if self.deterministic_path:
-                    decoder_input.append(r.unsqueeze(1).unsqueeze(3).repeat(1, ns, 1, X_D.size(1), 1))
+                    decoder_input.append(r.unsqueeze(1).unsqueeze(2).unsqueeze(3).repeat(1, ns, T, X_D.size(1), 1))
 
                 if self.local_deterministic_path:
-                    decoder_input.append(r_L.unsqueeze(1).repeat(1, ns, 1, 1, 1))
+                    decoder_input.append(r_L.unsqueeze(1).unsqueeze(2).repeat(1, ns, T, 1, 1))
 
             p_Y = self.decoder(torch.cat(decoder_input, -1))
                     
