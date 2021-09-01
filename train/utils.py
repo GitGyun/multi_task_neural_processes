@@ -22,6 +22,9 @@ def configure_experiment(config, args):
     config.architecture = args.architecture
     config.seed = args.seed
     config.name_postfix = args.name_postfix
+    config.shared = args.shared
+    if config.shared:
+        config.name_postfix += '_shared'
     
     # parse arguments
     if args.n_steps > 0: config.n_steps = args.n_steps

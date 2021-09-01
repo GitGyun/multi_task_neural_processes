@@ -78,6 +78,8 @@ for exp_name in eval_list:
     # load model and config
     ckpt = torch.load(eval_path, map_location=device)
     config = ckpt['config']
+    if 'shared' not in config:
+        config.shared = False
     model = get_model(config, device)
     model.load_state_dict_(ckpt['model'])
     
@@ -86,6 +88,8 @@ for exp_name in eval_list:
         assert os.path.exists(config_test.imputer_path)
         ckpt_imputer = torch.load(config_test.imputer_path)
         config_imputer = ckpt_imputer['config']
+        if 'shared' not in config_imputer:
+            config_imputer.shared = False
         imputer = get_model(config_imputer, device)
         imputer.load_state_dict_(ckpt_imputer['model'])
     else:

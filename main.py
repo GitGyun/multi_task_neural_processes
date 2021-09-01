@@ -34,6 +34,7 @@ parser.add_argument('--debug_mode', '-debug', default=False, action='store_true'
 
 # model-specific arguments
 parser.add_argument('--task_embedding', '-te', type=str2bool, default=None)
+parser.add_argument('--shared', '-sh', default=False, action='store_true')
 parser.add_argument('--dim_hidden', type=int, default=-1)
 parser.add_argument('--module_sizes', '-ms', nargs='+', default=[])
 
@@ -84,6 +85,8 @@ if config.model == 'jtp' and config.gamma_valid > 0:
     assert os.path.exists(config.imputer_path)
     ckpt_imputer = torch.load(config.imputer_path)
     config_imputer = ckpt_imputer['config']
+    if 'shared' not in config_imputer:
+        config_imputer.shared = False
     imputer = get_model(config_imputer, device)
     imputer.load_state_dict_(ckpt_imputer['model'])
 else:
@@ -131,7 +134,7 @@ while logger.global_step < config.n_steps:
     
     # save model
     if logger.global_step % config.save_iter == 0:
-        if config.model == 'stp':
+        if config.model == 'stp' and not config.shared:
             update_nll = False
             update_error = False
             for block in best_nlls:
