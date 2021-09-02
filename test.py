@@ -84,7 +84,7 @@ for exp_name in eval_list:
     model.load_state_dict_(ckpt['model'])
     
     # load imputer
-    if config.model == 'jtp' and config_test.gamma > 0:
+    if config.model == 'jtp' and config_test.gamma_test > 0:
         assert os.path.exists(config_test.imputer_path)
         ckpt_imputer = torch.load(config_test.imputer_path)
         config_imputer = ckpt_imputer['config']

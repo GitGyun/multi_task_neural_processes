@@ -24,7 +24,7 @@ ts_test: 1000
 ns_G: 5 # number of global sampling (for JTP, MTP)
 ns_T: 5 # number of per-task samplings (for STP, MTP)
 
-imputer_path: 'experiments/runs_synthetic/stp/checkpoints/best_nll.pth' # imputer checkpoint path (for JTP)
+imputer_path: 'experiments/runs_synthetic_final/stp/checkpoints/best_error.pth' # imputer checkpoint path (for JTP)
 
 ### checkpointing configs
 
