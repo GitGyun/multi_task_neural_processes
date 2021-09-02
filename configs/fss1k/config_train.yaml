@@ -1,0 +1,41 @@
+### data configs
+
+data: 'fss1k'
+data_path: 'data/fss-1000'
+
+dim_x: 3 # input dimension
+num_workers: 4
+
+ways: 5
+shots: 5
+base_size: [64, 64]
+
+
+### training configs
+
+n_steps: 200000 # total training steps
+global_batch_size: 4 # number of datasets (multi-task functions) in a batch
+
+lr: 0.00025 # learning rate
+lr_schedule: 'sqroot'
+lr_warmup: 1000
+
+
+### model configs
+
+dim_hidden: 256 # width of the networks, serves as a basic unit in all layers except the input & output heads (and also the latent dimensions)
+module_sizes: [6, 3, 2, 6] # depth of the networks: (element-wise encoder, intra-task attention, inter-task attention, element-wise decoder)
+
+activation: 'gelu'
+layernorm: True # layernorm in attentions and mlps
+dropout: 0.1 # dropout in mlps
+n_attn_heads: 4 # number of attention heads
+skip: False # skip connection in mlps
+
+
+### logging configs
+
+log_iter: 100 # interval between tqdm and tensorboard logging of training metrics
+val_iter: 1000 # interval between validation and tensorboard logging of validation metrics
+save_iter: 1000 # interval between checkpointing
+log_dir: 'runs_fss1k' # directory for saving checkpoints and logs

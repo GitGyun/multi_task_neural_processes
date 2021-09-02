@@ -9,7 +9,7 @@ import torch
 
 from dataset import load_data
 from model import get_model, DataParallel
-from train import train_step, evaluate, LRScheduler, HPScheduler, configure_experiment
+from train import train_step, evaluate, LRScheduler, configure_experiment
 
 
 ### ENVIRONMENTAL SETTINGS
@@ -25,16 +25,13 @@ def str2bool(v):
 parser = argparse.ArgumentParser()
 
 # basic arguments
-parser.add_argument('--data', type=str, default='synthetic', choices=['template', 'synthetic', 'synthetic_noised', 'synthetic_tasknoised', 'celeba'])
-parser.add_argument('--model', type=str, default='mtp', choices=['stp', 'jtp', 'mtp', 'mtp_glo'])
-parser.add_argument('--architecture', type=str, default='anp', choices=['np', 'cnp', 'anp', 'acnp', 'dnp'])
+parser.add_argument('--data', type=str, default='fss1k', choices=['fss1k'])
+parser.add_argument('--architecture', type=str, default='acnp', choices=['cnp', 'acnp'])
 parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--name_postfix', '-ptf', type=str, default='')
 parser.add_argument('--debug_mode', '-debug', default=False, action='store_true')
 
 # model-specific arguments
-parser.add_argument('--task_embedding', '-te', type=str2bool, default=None)
-parser.add_argument('--shared', '-sh', default=False, action='store_true')
 parser.add_argument('--dim_hidden', type=int, default=-1)
 parser.add_argument('--module_sizes', '-ms', nargs='+', default=[])
 
@@ -49,8 +46,6 @@ parser.add_argument('--n_steps', type=int, default=-1)
 parser.add_argument('--global_batch_size', type=int, default=-1)
 parser.add_argument('--lr', type=float, default=-1.)
 parser.add_argument('--lr_schedule', '-lrs', type=str, default='', choices=['constant', 'sqroot', 'cos', 'poly'])
-parser.add_argument('--beta_T_schedule', '-bts', type=str, default='', choices=['constant', 'linear_warmup'])
-parser.add_argument('--beta_G_schedule', '-bgs', type=str, default='', choices=['constant', 'linear_warmup'])
 
 args = parser.parse_args()
 
@@ -75,32 +70,10 @@ if torch.cuda.device_count() > 1:
 
 optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
 lr_scheduler = LRScheduler(optimizer, config.lr_schedule, config.lr, config.n_steps, config.lr_warmup)
-if config.global_latent:
-    beta_G_scheduler = HPScheduler(config, 'beta_G', config.beta_G_schedule, config.beta_G, config.n_steps, config.beta_G_warmup)
-if config.task_latents:
-    beta_T_scheduler = HPScheduler(config, 'beta_T', config.beta_T_schedule, config.beta_G, config.n_steps, config.beta_T_warmup)
-
-# load pretrained model as an imputer if needed
-if config.model == 'jtp' and config.gamma_valid > 0:
-    assert os.path.exists(config.imputer_path)
-    ckpt_imputer = torch.load(config.imputer_path)
-    config_imputer = ckpt_imputer['config']
-    if 'shared' not in config_imputer:
-        config_imputer.shared = False
-    imputer = get_model(config_imputer, device)
-    imputer.load_state_dict_(ckpt_imputer['model'])
-else:
-    imputer = config_imputer = None
 
 # for best checkpointing
-best_nll = float('inf')
-best_nlls = {block: float('inf') for block in [','.join(task_block) for task_block in config.task_blocks]}
-best_error = float('inf')
-best_errors = {block: float('inf') for block in [','.join(task_block) for task_block in config.task_blocks]}
-if config.model == 'stp':
-    best_nll_state_dict = model.state_dict_()
-    best_error_state_dict = model.state_dict_()
-    
+best_miou = 0.0
+
 ### MAIN LOOP
 pbar = tqdm.tqdm(total=config.n_steps, initial=0,
                  bar_format="{desc:<5}{percentage:3.0f}%|{bar:10}{r_bar}")
@@ -111,71 +84,31 @@ while logger.global_step < config.n_steps:
     
     # schedulers step
     lr_scheduler.step()
-    if config.global_latent:
-        beta_G_scheduler.step()
-    if config.task_latents:
-        beta_T_scheduler.step()
     
     # logging
     if logger.global_step % config.log_iter == 0:
         logger.log_values(log_keys, pbar, 'train', logger.global_step)
         logger.reset(log_keys)
         logger.writer.add_scalar('train/lr', lr_scheduler.lr, logger.global_step)
-        if config.global_latent:
-            logger.writer.add_scalar('train/beta_G', config.beta_G, logger.global_step)
-        if config.task_latents:
-            logger.writer.add_scalar('train/beta_T', config.beta_T, logger.global_step)
 
     # evaluate and visualize
     if logger.global_step % config.val_iter == 0:
-        valid_nlls, valid_errors = evaluate(model, valid_loader, device, config, logger, imputer, config_imputer, tag='valid')
-        valid_nll = sum([valid_nlls[task] for task in config.tasks])
-        valid_error = sum([valid_errors[task] for task in config.tasks])
+        valid_miou = evaluate(model, valid_loader, device, config, logger, tag='valid')
     
     # save model
     if logger.global_step % config.save_iter == 0:
-        if config.model == 'stp' and not config.shared:
-            update_nll = False
-            update_error = False
-            for block in best_nlls:
-                valid_nll_block = sum([valid_nlls[task] for task in block.split(',')])
-                if valid_nll_block < best_nlls[block]:
-                    best_nlls[block] = valid_nll_block
-                    best_nll_state_dict[block] = model.state_dict_block(block)
-                    update_nll = True
-                    
-                valid_error_block = sum([valid_errors[task] for task in block.split(',')])
-                if valid_error_block < best_errors[block]:
-                    best_errors[block] = valid_error_block
-                    best_error_state_dict[block] = model.state_dict_block(block)
-                    update_error = True
-                    
-            if update_nll:
-                torch.save({'model': best_nll_state_dict, 'config': config_copy,
-                            'nlls': valid_nlls, 'errors': valid_errors, 'global_step': logger.global_step},
-                            os.path.join(save_dir, 'best_nll.pth'))
-            if update_error:
-                torch.save({'model': best_error_state_dict, 'config': config_copy,
-                            'nlls': valid_nlls, 'errors': valid_errors, 'global_step': logger.global_step},
-                            os.path.join(save_dir, 'best_error.pth'))
-        else:
-            if valid_nll < best_nll:
-                best_nll = valid_nll
-                torch.save({'model': model.state_dict_(), 'config': config_copy,
-                            'nlls': valid_nlls, 'errors': valid_errors, 'global_step': logger.global_step},
-                            os.path.join(save_dir, 'best_nll.pth'))
-            if valid_error < best_error:
-                best_error = valid_error
-                torch.save({'model': model.state_dict_(), 'config': config_copy,
-                            'nlls': valid_nlls, 'errors': valid_errors, 'global_step': logger.global_step},
-                            os.path.join(save_dir, 'best_error.pth'))
+        if valid_miou < best_miou:
+            best_miou = valid_miou
+            torch.save({'model': model.state_dict(), 'config': config_copy,
+                        'miou': valid_miou, 'global_step': logger.global_step},
+                        os.path.join(save_dir, 'best.pth'))
                     
     
     pbar.update(1)
 
 ### Save Model and Terminate.
 torch.save({'model': model.state_dict(), 'config': config_copy,
-            'nlls': valid_nlls, 'errors': valid_errors, 'global_step': logger.global_step},
-           os.path.join(save_dir, 'last.pth'))
+            'miou': valid_miou, 'global_step': logger.global_step},
+            os.path.join(save_dir, 'last.pth'))
     
 pbar.close()

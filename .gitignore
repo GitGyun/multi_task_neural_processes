@@ -3,6 +3,7 @@ experiments*
 *__pycache__*
 *.ipynb
 *.tar
-data/CelebAMask-HQ
+data/fss-1000/images
+data/fewshot_data.zip
 backups
 run_experiments.py

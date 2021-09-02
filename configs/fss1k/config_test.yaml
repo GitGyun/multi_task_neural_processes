@@ -1,0 +1,15 @@
+### data configs
+
+data: 'fss1k'
+data_path: 'data/fss-1000'
+
+dim_x: 3 # input dimension
+num_workers: 4
+
+ways: 5
+shots: 5
+base_size: [64, 64]
+
+### checkpointing configs
+
+eval_dir: 'runs_fss1k' # directory where the models to evaluate are stored

@@ -103,16 +103,19 @@ class LatentMLP(nn.Module):
         
         
 class CrossAttention(nn.Module):
-    def __init__(self, dim_q, dim_k, dim_v, n_layers, n_heads, act_fn=nn.ReLU, ln=False, dr=0.1):
+    def __init__(self, dim_q, dim_k, dim_v, n_layers, n_heads, act_fn=nn.ReLU, ln=False, dr=0.1, proj=True):
         super().__init__()
-        self.query_proj = nn.Linear(dim_q, dim_v)
-        self.key_proj = nn.Linear(dim_k, dim_v)
+        self.proj = proj
+        if self.proj:
+            self.query_proj = nn.Linear(dim_q, dim_v)
+            self.key_proj = nn.Linear(dim_k, dim_v)
         self.attentions =  nn.ModuleList([Attention(dim_v, n_heads, act_fn=act_fn, ln=ln, dr=dr)
                                           for _ in range(n_layers)])
         
     def forward(self, Q, K, V, **kwargs):
-        Q = self.query_proj(Q)
-        K = self.key_proj(K)
+        if self.proj:
+            Q = self.query_proj(Q)
+            K = self.key_proj(K)
         for attention in self.attentions:
             Q = attention(Q, K, V, **kwargs)
             
@@ -138,3 +141,70 @@ class MultiTaskAttention(nn.Module):
             return Q.squeeze(1)
         else:
             return Q
+        
+def conv_block(ic, oc, ks, st, pd, act_fn, dr=0):
+    layers = [nn.Conv2d(ic, oc, ks, st, pd),
+              nn.BatchNorm2d(oc),
+              act_fn()]
+    if dr > 0:
+        layers.append(nn.Dropout(dr))
+    return nn.Sequential(*layers)
+
+
+def deconv_block(ic, oc, ks, st, pd, act_fn, dr=0):
+    layers = [nn.ConvTranspose2d(ic, oc, ks, st, pd),
+              nn.BatchNorm2d(oc),
+              act_fn()]
+    if dr > 0:
+        layers.append(nn.Dropout(dr))
+    return nn.Sequential(*layers)
+
+
+class ConvEncoder(nn.Module):
+    def __init__(self, dim_in, dim_hidden, dim_out, act_fn=nn.ReLU, dropout=False):
+        super().__init__()
+        self.dim_out = dim_out 
+        dr = 0.5 if dropout else 0
+        self.blocks = nn.Sequential(
+            conv_block(dim_in, dim_hidden, 3, 1, 1, act_fn, dr),
+            conv_block(dim_hidden, dim_hidden*2, 4, 2, 1, act_fn, dr),
+            conv_block(dim_hidden*2, dim_hidden*4, 4, 2, 1, act_fn, dr),
+            conv_block(dim_hidden*4, dim_hidden*8, 4, 2, 1, act_fn, dr),
+            conv_block(dim_hidden*8, dim_hidden*8, 4, 2, 1, act_fn, dr)
+        )
+        self.avgpool = nn.AdaptiveAvgPool2d(1)
+        self.out = nn.Sequential(
+            conv_block(dim_hidden*8, dim_out, 1, 1, 0, act_fn, dr),
+            nn.Conv2d(dim_out, dim_out, 1)
+        )
+
+    def forward(self, x):
+        hidden = self.blocks(x)
+        hidden = self.avgpool(hidden)
+        hidden = self.out(hidden).view(x.size(0), self.dim_out)
+        return hidden
+
+
+class ConvDecoder(nn.Module):
+    def __init__(self, dim_in, dim_hidden, dim_out, act_fn=nn.ReLU, dropout=False):
+        super().__init__()
+        assert dim_hidden % 8 == 0
+        dr = 0.5 if dropout else 0
+        self.proj_head = nn.Conv2d(dim_in, dim_hidden, 1)
+        self.blocks = nn.Sequential(
+            deconv_block(dim_hidden, dim_hidden, 4, 2, 1, act_fn, dr),
+            deconv_block(dim_hidden, dim_hidden//2, 4, 2, 1, act_fn, dr),
+            deconv_block(dim_hidden//2, dim_hidden//4, 4, 2, 1, act_fn, dr),
+            deconv_block(dim_hidden//4, dim_hidden//8, 4, 2, 1, act_fn, dr),
+            deconv_block(dim_hidden//8, dim_hidden//8, 3, 1, 1, act_fn, dr),
+        )
+        self.out = nn.Sequential(
+            conv_block(dim_hidden//8, dim_out, 1, 1, 0, act_fn, dr),
+            nn.Conv2d(dim_out, dim_out, 1)
+        )
+
+    def forward(self, x):
+        hidden = self.proj_head(x.unsqueeze(2).unsqueeze(3))
+        hidden = self.blocks(hidden)
+        hidden = self.out(hidden)
+        return hidden
