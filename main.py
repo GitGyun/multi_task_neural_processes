@@ -26,7 +26,8 @@ parser = argparse.ArgumentParser()
 
 # basic arguments
 parser.add_argument('--data', type=str, default='fss1k', choices=['fss1k'])
-parser.add_argument('--architecture', type=str, default='acnp', choices=['cnp', 'acnp'])
+parser.add_argument('--model', type=str, default='mtp', choices=['stp', 'mtp'])
+parser.add_argument('--architecture', type=str, default='acnp', choices=['cnp', 'anp', 'acnp'])
 parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--name_postfix', '-ptf', type=str, default='')
 parser.add_argument('--debug_mode', '-debug', default=False, action='store_true')

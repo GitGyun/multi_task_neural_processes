@@ -20,6 +20,7 @@ colors = [(1., 0., 0.), (0., 1., 0.), (0., 0., 1.), (1., 1., 0.), (1., 0., 1.)]
 
 def configure_experiment(config, args):
     # update config with arguments
+    config.model = args.model
     config.architecture = args.architecture
     config.seed = args.seed
     config.name_postfix = args.name_postfix
@@ -39,12 +40,11 @@ def configure_experiment(config, args):
     if args.lr_schedule != '': config.lr_schedule = args.lr_schedule
     if args.activation != '': config.activation = args.activation
         
-    # configure architecture
-    if config.architecture == 'cnp':
-        config.local_deterministic_path = False
-    elif config.architecture == 'acnp':
-        config.local_deterministic_path = True
-        
+    # configure model and architecture
+    config.global_path = (config.architecture == 'acnp' or config.architecture == 'cnp')
+    config.local_path = (config.architecture == 'acnp' or config.architecture == 'anp')
+    config.inter_channel_attention = (config.model == 'mtp')
+    
     config.base_size = (int(config.base_size[0]), int(config.base_size[1]))
     
     # set seeds
@@ -63,7 +63,7 @@ def configure_experiment(config, args):
         config.log_dir += '_debugging'
 
     # set directories
-    exp_name = config.architecture + config.name_postfix
+    exp_name = config.model + '_' + config.architecture + config.name_postfix
     os.makedirs('experiments', exist_ok=True)
     os.makedirs(os.path.join('experiments', config.log_dir), exist_ok=True)
     os.makedirs(os.path.join('experiments', config.log_dir, exp_name), exist_ok=True)
