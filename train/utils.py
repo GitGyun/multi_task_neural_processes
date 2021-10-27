@@ -14,6 +14,8 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision.transforms import ToTensor
 from torchvision.utils import make_grid
 
+from dataset.fss1k import MEAN, STD
+
 
 colors = [(1., 0., 0.), (0., 1., 0.), (0., 0., 1.), (1., 1., 0.), (1., 0., 1.)]
 
@@ -21,31 +23,26 @@ colors = [(1., 0., 0.), (0., 1., 0.), (0., 0., 1.), (1., 1., 0.), (1., 0., 1.)]
 def configure_experiment(config, args):
     # update config with arguments
     config.model = args.model
-    config.architecture = args.architecture
     config.seed = args.seed
     config.name_postfix = args.name_postfix
+    config.enc_attn = args.enc_attn
+    config.dec_attn = args.dec_attn
+    config.attn_architecture = args.attn_architecture
+    config.n_attn_layers = args.n_attn_layers
+    config.double_cross = args.double_cross
     
     # parse arguments
+    if args.log_dir != '': config.log_dir = args.log_dir
     if args.n_steps > 0: config.n_steps = args.n_steps
     if args.lr > 0: config.lr = args.lr
-    if args.global_batch_size > 0: config.global_batch_size = args.global_batch_size
-    if args.dim_hidden > 0: config.dim_hidden = args.dim_hidden
-    if len(args.module_sizes) > 0: config.module_sizes = [int(size) for size in args.module_sizes]
-    if args.n_attn_heads > 0: config.n_attn_heads = args.n_attn_heads
-    if args.dropout >= 0: config.dropout = args.dropout
-        
-    if args.layernorm is not None: config.layernorm = args.layernorm
-    if args.skip is not None: config.skip = args.skip
-        
     if args.lr_schedule != '': config.lr_schedule = args.lr_schedule
-    if args.activation != '': config.activation = args.activation
-        
-    # configure model and architecture
-    config.global_path = (config.architecture == 'acnp' or config.architecture == 'cnp')
-    config.local_path = (config.architecture == 'acnp' or config.architecture == 'anp')
-    config.inter_channel_attention = (config.model == 'mtp')
+    if args.global_batch_size > 0: config.global_batch_size = args.global_batch_size
+    if args.ways > 0: config.ways = args.ways
+    if args.shots > 0: config.shots = args.shots
     
-    config.base_size = (int(config.base_size[0]), int(config.base_size[1]))
+    # image resolution
+    config.base_size = int(config.base_size)
+    config.crop_size = (int(config.crop_size[0]), int(config.crop_size[1]))
     
     # set seeds
     torch.backends.cudnn.deterministic = True
@@ -56,14 +53,16 @@ def configure_experiment(config, args):
     
     # for debugging
     if args.debug_mode:
-        config.n_steps = 3
+        config.n_steps = 2
         config.log_iter = 1
         config.val_iter = 1
         config.save_iter = 1
         config.log_dir += '_debugging'
 
     # set directories
-    exp_name = config.model + '_' + config.architecture + config.name_postfix
+    exp_name = config.model + config.name_postfix
+    if config.attn_architecture:
+        exp_name = 'attn-' + exp_name
     os.makedirs('experiments', exist_ok=True)
     os.makedirs(os.path.join('experiments', config.log_dir), exist_ok=True)
     os.makedirs(os.path.join('experiments', config.log_dir, exp_name), exist_ok=True)
@@ -72,6 +71,9 @@ def configure_experiment(config, args):
     if os.path.exists(save_dir):
         if args.debug_mode:
             shutil.rmtree(save_dir)
+        elif args.continue_mode:
+            print('checkpoint exists - skip')
+            sys.exit()
         else:
             while True:
                 print('redundant experiment name! remove existing checkpoints? (y/n)')
@@ -236,23 +238,41 @@ def make_triple(X, Y, n_classes=5):
     overlapped = overlap_label(X, Y)
     label_map = color_label(Y)
     vis = torch.cat((overlapped.reshape(n_classes, batch_size//n_classes, *overlapped.size()[1:]),
-                     X.reshape(n_classes, batch_size//n_classes, *X.size()[1:]),
-                     label_map.reshape(n_classes, batch_size//n_classes, *label_map.size()[1:])), 1)
+                     label_map.reshape(n_classes, batch_size//n_classes, *label_map.size()[1:]),
+                     X.reshape(n_classes, batch_size//n_classes, *X.size()[1:])), 1)
     vis = vis.reshape(batch_size*3, *vis.size()[2:])
-    vis = make_grid(vis, nrow=n_classes*3)
     
     return vis
     
     
-def plot_images(X, Y, Y_pred, logger, n_classes):
+def plot_images(X, Y, Y_pred, ways, shots, logger=None, tag='valid'):
     assert len(X.size()) == 5
     vis_gt = []
     vis_pred = []
-    for b_idx in range(X.size(0)):
-        vis_gt.append(make_triple(X[b_idx], Y[b_idx], n_classes))
-        vis_pred.append(make_triple(X[b_idx], Y_pred[b_idx], n_classes))
-    vis_gt = make_grid(torch.stack(vis_gt), nrow=1)
-    vis_pred = make_grid(torch.stack(vis_pred), nrow=1)
     
-    logger.writer.add_image('valid_gt', vis_gt, global_step=logger.global_step)
-    logger.writer.add_image('valid_pred', vis_pred, global_step=logger.global_step)
+    X = unnormalize(X, MEAN, STD)
+    for b_idx in range(X.size(0)):
+        vis_gt.append(make_triple(X[b_idx], Y[b_idx], ways))
+        vis_pred.append(make_triple(X[b_idx], Y_pred[b_idx], ways))
+    
+    vis_gt = torch.stack(vis_gt)
+    vis_pred = torch.stack(vis_pred)
+        
+    B = X.size(0)
+    vis_gt_ = vis_gt.reshape(B, ways, 3*shots, 3, *X.size()[3:])
+    vis_pred_ = vis_pred.reshape(B, ways, 3*shots, 3, *X.size()[3:])
+    vis = torch.cat((vis_gt_, vis_pred_), 2).reshape(-1, 3, *X.size()[3:])
+    vis = make_grid(vis, nrow=shots*3)
+    
+    if logger is not None:
+        logger.writer.add_image(tag, vis, global_step=logger.global_step)
+        logger.writer.flush()
+    
+    return vis
+   
+    
+def unnormalize(x, mean, std):
+    mean = torch.tensor(mean).unsqueeze(0).unsqueeze(1).unsqueeze(3).unsqueeze(4)
+    std = torch.tensor(std).unsqueeze(0).unsqueeze(1).unsqueeze(3).unsqueeze(4)
+    
+    return x * std + mean

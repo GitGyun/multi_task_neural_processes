@@ -14,7 +14,7 @@ def load_data(config, device, split='trainval'):
     
     # load train iterator
     if split == 'train' or split == 'trainval':
-        train_data = TrainDataset(config.data_path, 'train', config.ways, config.shots, config.base_size)
+        train_data = TrainDataset(config.data_path, 'train', config.ways, config.shots, config.base_size, config.crop_size)
         train_loader = DataLoader(train_data, batch_size=config.global_batch_size,
                                   shuffle=True, pin_memory=(device.type == 'cuda'),
                                   drop_last=True, num_workers=config.num_workers)
@@ -22,14 +22,14 @@ def load_data(config, device, split='trainval'):
         
     # load valid loader
     if split == 'valid' or split == 'trainval':
-        valid_data = TestDataset(config.data_path, 'valid', config.ways, config.shots, config.base_size)
+        valid_data = TestDataset(config.data_path, 'valid', config.ways, config.shots, config.base_size, config.crop_size)
         valid_loader = DataLoader(valid_data, batch_size=config.global_batch_size,
                                   shuffle=False, pin_memory=(device.type == 'cuda'),
                                   drop_last=False, num_workers=config.num_workers)
     
     # load test loader
     if split == 'test':
-        test_data = TestDataset(config.data_path, 'test', config.ways, config.shots, config.base_size)
+        test_data = TestDataset(config.data_path, 'test', config.ways, config.shots, config.base_size, config.crop_size)
         test_loader = DataLoader(test_data, batch_size=config.global_batch_size,
                                  shuffle=False, pin_memory=(device.type == 'cuda'),
                                  drop_last=False, num_workers=config.num_workers)

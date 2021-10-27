@@ -8,7 +8,7 @@ from easydict import EasyDict
 import torch
 
 from dataset import load_data
-from model import get_model, DataParallel
+from efficientwnet import get_model, get_model2, DataParallel
 from train import train_step, evaluate, LRScheduler, configure_experiment
 
 
@@ -25,28 +25,29 @@ def str2bool(v):
 parser = argparse.ArgumentParser()
 
 # basic arguments
+parser.add_argument('--model', type=str, default='efficientnet-b0', choices=['efficientnet-b0'])
 parser.add_argument('--data', type=str, default='fss1k', choices=['fss1k'])
-parser.add_argument('--model', type=str, default='mtp', choices=['stp', 'mtp'])
-parser.add_argument('--architecture', type=str, default='acnp', choices=['cnp', 'anp', 'acnp'])
 parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--name_postfix', '-ptf', type=str, default='')
 parser.add_argument('--debug_mode', '-debug', default=False, action='store_true')
+parser.add_argument('--continue_mode', '-ctn', default=False, action='store_true')
+parser.add_argument('--log_dir', type=str, default='')
 
-# model-specific arguments
-parser.add_argument('--dim_hidden', type=int, default=-1)
-parser.add_argument('--module_sizes', '-ms', nargs='+', default=[])
-
-parser.add_argument('--n_attn_heads', '-nat', type=int, default=-1)
-parser.add_argument('--activation', '-act', type=str, default='')
-parser.add_argument('--layernorm', '-ln', type=str2bool, default=None)
-parser.add_argument('--dropout', '-dr', type=float, default=-1.)
-parser.add_argument('--skip', type=str2bool, default=None)
+# model arguments
+parser.add_argument('--enc_attn', '-eat', type=str2bool, default=False)
+parser.add_argument('--dec_attn', '-dat', type=str2bool, default=False)
+parser.add_argument('--attn_architecture', '-aa', default=False, action='store_true')
+parser.add_argument('--n_attn_layers', '-nal', type=int, default=1)
+parser.add_argument('--double_cross', '-dc', type=str2bool, default=False)
 
 # training arguments
 parser.add_argument('--n_steps', type=int, default=-1)
-parser.add_argument('--global_batch_size', type=int, default=-1)
+parser.add_argument('--global_batch_size', '-gbs', type=int, default=-1)
 parser.add_argument('--lr', type=float, default=-1.)
 parser.add_argument('--lr_schedule', '-lrs', type=str, default='', choices=['constant', 'sqroot', 'cos', 'poly'])
+parser.add_argument('--diff_lr', '-dlr', type=str2bool, default=True)
+parser.add_argument('--ways', type=int, default=-1)
+parser.add_argument('--shots', type=int, default=-1)
 
 args = parser.parse_args()
 
@@ -65,11 +66,18 @@ device = torch.device('cuda')
 train_iterator, valid_loader = load_data(config, device, split='trainval')
 
 # model, optimizer, and schedulers
-model = get_model(config, device)
+if config.attn_architecture:
+    model = get_model2(config.model, config.double_cross).to(device)
+else:
+    model = get_model(config.model).to(device)
 if torch.cuda.device_count() > 1:
     model = DataParallel(model).to(device)
 
-optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
+if args.diff_lr:
+    optimizer = torch.optim.Adam([{'params': model.task_parameters()},
+                                  {'params': model.domain_parameters(), 'lr': 0.1*config.lr}], lr=config.lr)
+else:
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
 lr_scheduler = LRScheduler(optimizer, config.lr_schedule, config.lr, config.n_steps, config.lr_warmup)
 
 # for best checkpointing
@@ -98,7 +106,7 @@ while logger.global_step < config.n_steps:
     
     # save model
     if logger.global_step % config.save_iter == 0:
-        if valid_miou < best_miou:
+        if valid_miou > best_miou:
             best_miou = valid_miou
             torch.save({'model': model.state_dict(), 'config': config_copy,
                         'miou': valid_miou, 'global_step': logger.global_step},

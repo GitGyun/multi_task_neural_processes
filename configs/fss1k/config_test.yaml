@@ -8,7 +8,8 @@ num_workers: 4
 
 ways: 5
 shots: 5
-base_size: [64, 64]
+base_size: 80
+crop_size: [64, 64]
 
 ### checkpointing configs
 

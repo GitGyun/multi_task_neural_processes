@@ -4,16 +4,22 @@ from PIL import Image
 
 import torch
 from torch.utils.data import Dataset
-from torchvision.transforms import ToTensor
+from torchvision import transforms
 
+from dataset import custom_transforms as tr
+
+
+MEAN = (0.485, 0.456, 0.406)
+STD = (0.229, 0.224, 0.225)
 
 class FSSDataset(Dataset):
-    def __init__(self, data_path, split, ways=5, shots=5, base_size=(64, 64)):
+    def __init__(self, data_path, split, ways=5, shots=5, base_size=80, crop_size=(64, 64)):
         self.data_path = data_path
         self.split = split
         self.ways = ways
         self.shots = shots
         self.base_size = base_size
+        self.crop_size = crop_size
         
         assert shots < 10
         assert 240 % ways == 0
@@ -31,22 +37,40 @@ class FSSDataset(Dataset):
                 else:
                     self.categories = trainval_classes[520:]
                     
-        self.toten = ToTensor()
+
+    def transform_train(self, img, mask):
+        composed_transforms = transforms.Compose([
+            tr.RandomHorizontalFlip(),
+            tr.RandomScaleCrop(base_size=self.base_size, crop_size=self.crop_size),
+            tr.RandomGaussianBlur(),
+            tr.Normalize(mean=MEAN, std=STD),
+            tr.ToTensor()])
+        sample = {'image': img, 'label': mask}
+        sample_tr = composed_transforms(sample)
         
-    def load_image(self, category, instance):
+        return sample_tr['image'], sample_tr['label']
+
+    def transform_test(self, img, mask):
+        composed_transforms = transforms.Compose([
+            tr.FixScaleCrop(crop_size=(self.base_size, self.base_size)),
+            tr.Normalize(mean=MEAN, std=STD),
+            tr.ToTensor()])
+        sample = {'image': img, 'label': mask}
+        sample_tr = composed_transforms(sample)
+        
+        return sample_tr['image'], sample_tr['label']
+        
+    def load_img(self, category, instance):
         img_path = os.path.join(self.data_path, 'images', category, f'{instance}.jpg')
-        img = Image.open(img_path).resize(self.base_size)
-        x = self.toten(img)
+        img = Image.open(img_path)
         
-        return x
+        return img
     
-    def load_label(self, category, instance, label):
+    def load_mask(self, category, instance, label):
         mask_path = os.path.join(self.data_path, 'images', category, f'{instance}.png')
-        mask = Image.open(mask_path).convert('L').resize(self.base_size)
-        y = self.toten(mask).squeeze(0)
-        y = (label + 1)*(y > 0.5).long()
+        mask = Image.open(mask_path).convert('L')
         
-        return y
+        return mask
         
     def __len__(self):
         raise NotImplementedError
@@ -75,15 +99,27 @@ class FSSTrainDataset(FSSDataset):
             targets = set(all_instances).difference(contexts)
             
             for i in contexts:
-                X_C.append(self.load_image(c, i))
-                Y_C.append(self.load_label(c, i, label))
+                img = self.load_img(c, i)
+                mask = self.load_mask(c, i, label)
+                x, y = self.transform_train(img, mask)
+                y = (label + 1)*(y > 0.5).long().squeeze(0)
+                
+                X_C.append(x)
+                Y_C.append(y)
             
             for i in targets:
-                X_D.append(self.load_image(c, i))
-                Y_D.append(self.load_label(c, i, label))
+                img = self.load_img(c, i)
+                mask = self.load_mask(c, i, label)
+                x, y = self.transform_train(img, mask)
+                y = (label + 1)*(y > 0.5).long().squeeze(0)
+                
+                X_D.append(x)
+                Y_D.append(y)
                 
         X_C = torch.stack(X_C)
         Y_C = torch.stack(Y_C)
+        Y_C = torch.stack([(Y_C == idx_c + 1).float() for idx_c in range(self.ways)], 1)
+        
         X_D = torch.stack(X_D)
         Y_D = torch.stack(Y_D)
         
@@ -107,15 +143,27 @@ class FSSTestDataset(FSSDataset):
         Y_D = []
         for label, c in enumerate(classes):
             for i in contexts:
-                X_C.append(self.load_image(c, i))
-                Y_C.append(self.load_label(c, i, label))
+                img = self.load_img(c, i)
+                mask = self.load_mask(c, i, label)
+                x, y = self.transform_test(img, mask)
+                y = (label + 1)*(y > 0.5).long().squeeze(0)
+                
+                X_C.append(x)
+                Y_C.append(y)
             
             for i in targets:
-                X_D.append(self.load_image(c, i))
-                Y_D.append(self.load_label(c, i, label))
+                img = self.load_img(c, i)
+                mask = self.load_mask(c, i, label)
+                x, y = self.transform_test(img, mask)
+                y = (label + 1)*(y > 0.5).long().squeeze(0)
+                
+                X_D.append(x)
+                Y_D.append(y)
                 
         X_C = torch.stack(X_C)
         Y_C = torch.stack(Y_C)
+        Y_C = torch.stack([(Y_C == idx_c + 1).float() for idx_c in range(self.ways)], 1)
+        
         X_D = torch.stack(X_D)
         Y_D = torch.stack(Y_D)
         
