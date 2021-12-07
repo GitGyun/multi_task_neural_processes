@@ -1,0 +1,32 @@
+### data configs
+
+data: 'synthetic'
+data_path: 'data/synthetic/sine,tanh,sigmoid,gaussian_N1000_n200.pth'
+tasks: ['sine', 'tanh', 'sigmoid', 'gaussian'] # list of task names
+task_types: {'sine': 'continuous', 'tanh': 'continuous', 'sigmoid': 'continuous', 'gaussian': 'continuous'} # whether each task is continuous or discrete
+
+dim_x: 1 # input dimension
+dim_ys: {'sine': 1, 'tanh': 1, 'sigmoid': 1, 'gaussian': 1} # output dimensions or channels
+
+split_ratio: [0.8, 0.1, 0.1]
+num_workers: 4
+
+colors: {'sine': 'r', 'tanh': 'g', 'sigmoid': 'b', 'gaussian': 'c'}
+
+global_batch_size: 4 # number of datasets (multi-task functions) in a batch
+
+### validation configs
+
+ts_valid: 200
+
+### test configs
+
+ts_test: 1000
+ns_G: 5 # number of global sampling (for JTP, MTP)
+ns_T: 5 # number of per-task samplings (for STP, MTP)
+
+imputer_path: 'experiments/runs_synthetic/stp/checkpoints/best_error.pth' # imputer checkpoint path (for JTP)
+
+### checkpointing configs
+
+eval_dir: 'runs_synthetic' # directory where the models to evaluate are stored

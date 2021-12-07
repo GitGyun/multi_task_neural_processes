@@ -1,0 +1,35 @@
+### data configs
+
+data: 'weather'
+data_path: 'data/weather/weather_266cities_12tasks_258days.pth'
+tasks: ['tMin_Global', 'tMax_Global', 'humidity_Global', 'precip_Global', 'cloud_Global', 'dew_Global'] # list of task names
+task_types: {'tMin_Global': 'continuous', 'tMax_Global': 'continuous', 'humidity_Global': 'continuous', 'precip_Global': 'continuous',
+             'cloud_Global': 'continuous', 'wind_Global': 'continuous', 'dew_Global': 'continuous'} # whether each task is continuous or discrete
+
+dim_x: 1 # input dimension
+dim_ys: {'tMin_Global': 1, 'tMax_Global': 1, 'humidity_Global': 1, 'precip_Global': 1, 'cloud_Global': 1,
+         'dew_Global': 1, 'wind_Global': 1, 'pressure_Global': 1, 'ozone_Global': 1, 'uv_Global': 1} # output dimensions or channels
+
+split_ratio: [200, 30, 36]
+num_workers: 4
+
+colors: {'tMin_Global': 'r', 'tMax_Global': 'g', 'humidity_Global': 'b', 'precip_Global': 'c', 'cloud_Global': 'm',
+         'dew_Global': 'y', 'wind_Global': 'tab:purple', 'pressure_Global': 'tab:orange', 'ozone_Global': 'tab:brown', 'uv_Global': 'tab:pink'}
+
+global_batch_size: 16 # number of datasets (multi-task functions) in a batch
+
+### validation configs
+
+ts_valid: 258
+
+### test configs
+
+ts_test: 258
+ns_G: 5 # number of global sampling (for JTP, MTP)
+ns_T: 5 # number of per-task samplings (for STP, MTP)
+
+imputer_path: 'experiments/runs_weather/stp/checkpoints/best_error.pth' # imputer checkpoint path (for JTP)
+
+### checkpointing configs
+
+eval_dir: 'runs_weather' # directory where the models to evaluate are stored

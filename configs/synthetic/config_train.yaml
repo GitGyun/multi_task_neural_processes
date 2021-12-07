@@ -1,0 +1,69 @@
+### data configs
+
+data: 'synthetic'
+data_path: 'data/synthetic/sine,tanh,sigmoid,gaussian_N1000_n200.pth'
+tasks: ['sine', 'tanh', 'sigmoid', 'gaussian'] # list of task names
+task_types: {'sine': 'continuous', 'tanh': 'continuous', 'sigmoid': 'continuous', 'gaussian': 'continuous'} # whether each task is continuous or discrete
+
+dim_x: 1 # input dimension
+dim_ys: {'sine': 1, 'tanh': 1, 'sigmoid': 1, 'gaussian': 1} # output dimensions or channels
+
+split_ratio: [0.8, 0.1, 0.1]
+num_workers: 4
+
+colors: {'sine': 'r', 'tanh': 'g', 'sigmoid': 'b', 'gaussian': 'c'}
+
+
+### training configs
+
+n_steps: 300000 # total training steps
+global_batch_size: 24 # number of datasets (multi-task functions) in a batch
+
+lr: 0.00025 # learning rate
+lr_schedule: 'sqroot'
+lr_warmup: 1000
+
+beta_G: 1 # beta coefficient for global kld
+beta_G_schedule: 'linear_warmup'
+beta_G_warmup: 10000
+
+beta_T: 1 # beta coefficient for per-task klds
+beta_T_schedule: 'linear_warmup'
+beta_T_warmup: 10000
+
+gamma_train: 0.5 # missing rate
+cs_range_train: [5, 20] # context size, null means default range (len(tasks), ts // 2)
+ts_train: 200 # target size
+
+
+### validation configs
+
+cs_valid: 10
+ts_valid: 200
+ns_G: 5 # number of global sampling
+ns_T: 5 # number of per-task samplings
+
+gamma_valid: 0.5 # missing rate
+imputer_path: 'experiments/runs_synthetic/stp/checkpoints/best_error.pth' # imputer checkpoint path (for JTP)
+
+
+### model configs
+
+dim_hidden: 128 # width of the networks, serves as a basic unit in all layers except the input & output heads (and also the latent dimensions)
+module_sizes: [3, 3, 2, 5] # depth of the networks: (element-wise encoder, intra-task attention, inter-task attention, element-wise decoder)
+pma: True # whether to use PMA pooling rather than average pooling
+
+attn_config:
+    act_fn: 'gelu'
+    ln: True # layernorm in attentions and mlps
+    dr: 0.1 # dropout in mlps
+    n_heads: 4 # number of attention heads
+epsilon: 0.1 # minimum standard deviation for Normal latent variables
+
+
+### logging configs
+
+log_iter: 100 # interval between tqdm and tensorboard logging of training metrics
+val_iter: 5000 # interval between validation and tensorboard logging of validation metrics
+save_iter: 5000 # interval between checkpointing
+log_dir: 'runs_synthetic' # directory for saving checkpoints and logs
