@@ -318,6 +318,8 @@ class EfficientNet(nn.Module):
 #                         x2 = x2.reshape(B, T, H, W, N, K).permute(0, 4, 1, 5, 2, 3).reshape(B*N*T, K, H, W)
 #                         x = torch.cat((x1, x2), 1)
 #                         x = self.merge_convs[count](x)
+
+                        x = x.reshape(B, T, H, W, N, K).permute(0, 4, 1, 5, 2, 3).reshape(B*N*T, K, H, W)
                         
                         h = x.mean(2).mean(2).reshape(B, N, T, K)
                         h = self.example_mlps[count](h)
