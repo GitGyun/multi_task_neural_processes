@@ -1,6 +1,6 @@
-# multi_task_processes
+# Multi-Task Neural Processes
 
-This repository contains pytorch implementation of Multi-Task Processes.
+This repository contains a pytorch implementation of [Multi-Task Neural Processes](https://arxiv.org/abs/2110.14953).
 
 
 ### Basic Usage
